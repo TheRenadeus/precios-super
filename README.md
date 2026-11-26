@@ -9,9 +9,12 @@ Funciona como app web instalable (PWA) desde GitHub Pages.
   Cada producto muestra su gráfico de precio y el mismo producto en los otros supermercados.
 - **Seguidos:** los productos que marcas con la estrella (se guardan solo en tu teléfono).
 
-Supermercados: **Jumbo, Santa Isabel, Tottus, aCuenta, Alvi y Central Mayorista**. El `robots.txt` de Líder
-prohíbe leer su búsqueda, Mayorista 10 pasó a ser Super10 (sin tienda online) y Unimarc carga sus productos aparte,
-desde el navegador (falta implementarlo).
+Supermercados: **Jumbo, Santa Isabel, Tottus, Unimarc, aCuenta, Alvi y Central Mayorista**. El `robots.txt` de
+Líder prohíbe leer su búsqueda y Mayorista 10 pasó a ser Super10 (sin tienda online).
+
+Unimarc no trae los productos en el HTML de su búsqueda: se leen de su BFF (`bff-unimarc-ecommerce.unimarc.cl`),
+con la misma consulta que hace el navegador de cualquier visitante. Sin dirección elegida, son los precios por
+defecto del sitio.
 
 El script se identifica como `precios-super-bot` y no como un navegador: Alvi (y Unimarc) rechazan a los programas que
 se hacen pasar por navegador, pero dejan leer a un agente que se identifica. Alvi vende por unidad con precios por

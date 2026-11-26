@@ -114,7 +114,7 @@ function leerAlvi(html) {
         .filter(([q, p]) => q > 1 && p > 0 && p < precio)
         .sort((a, b) => a[0] - b[0]);
       // Fotos de VTEX: '/ids/<n>/' → '/ids/<n>-300-300/' entrega 300 px (~25 KB) en vez del original.
-      const foto = String((x.images || [])[0] || '').replace(/\/ids\/(\d+)\//, '/ids/$1-300-300/');
+      const foto = fotoVtex((x.images || [])[0]);
       out.push({
         id: String(x.productId),
         // 'name' es el nombre limpio ('nameComplete' a veces repite texto); si no trae el tamaño, se suma 'format'.
@@ -127,6 +127,43 @@ function leerAlvi(html) {
         tarjeta: null,
         disponible,
         e: escalas.length ? escalas : undefined,
+      });
+    }
+  }
+  return out;
+}
+
+// Unimarc (SMU) no trae los productos en el HTML de su búsqueda: los pide a su BFF con esta consulta, la misma
+// que hace el navegador de cualquier visitante (sin cuenta). Sin dirección elegida, son los precios por defecto del sitio.
+const fotoVtex = u => String(u || '').replace(/\/ids\/(\d+)\//, '/ids/$1-300-300/'); // 300 px en vez del original
+async function buscarUnimarc(q, p) {
+  const desde = (p - 1) * 40;
+  const r = await fetch('https://bff-unimarc-ecommerce.unimarc.cl/catalog/product/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': UA, channel: 'UNIMARC', source: 'web', version: '1.0.0',
+      Origin: 'https://www.unimarc.cl', Referer: 'https://www.unimarc.cl/' },
+    body: JSON.stringify({ from: String(desde), to: String(desde + 39), searching: q, userTriggered: true, promotionsOnly: false }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!r.ok) throw new Error(`Unimarc respondió ${r.status}`);
+  const j = await r.json();
+  const out = [];
+  for (const [lista, disponible] of [[j.availableProducts, true], [j.notAvailableProducts, false]]) {
+    for (const x of lista || []) {
+      const it = x.item || {}, pr = x.price || {};
+      const precio = numCLP(pr.price);
+      if (!precio || !it.productId || !it.slug) continue;
+      const normal = numCLP(pr.listPrice);
+      out.push({
+        id: String(it.productId),
+        n: String(it.nameComplete || it.name || '').trim(),
+        m: String(it.brand || '').trim(),
+        u: `https://www.unimarc.cl/product/${it.slug.replace(/^\//, '').replace(/\/p$/, '')}`,
+        i: fotoVtex((it.images || [])[0]),
+        precio,
+        normal: normal && normal > precio ? normal : null,
+        tarjeta: null,
+        disponible,
       });
     }
   }
@@ -207,6 +244,10 @@ const TIENDAS = {
   acuenta: {
     nombre: 'aCuenta',
     buscar: instaleap({ nombre: 'aCuenta', clientId: 'SUPER_BODEGA', local: '580', sitio: 'https://www.acuenta.cl' }), // local El Monte
+  },
+  unimarc: {
+    nombre: 'Unimarc',
+    buscar: buscarUnimarc,
   },
   alvi: {
     nombre: 'Alvi',
