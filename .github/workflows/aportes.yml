@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 5
     env:
       ISSUE: ${{ github.event.issue.number }}
-      RESPUESTA: ${{ runner.temp }}/respuesta.md
+      RESPUESTA: /tmp/respuesta.md
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
