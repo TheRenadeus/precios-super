@@ -1,0 +1,58 @@
+name: Precios aportados
+
+# Cada aviso hecho con el formulario "Aportar un precio" se revisa y se suma a data/aportes.json.
+# Para quitar un aporte: ponle la etiqueta "rechazado" al aviso.
+on:
+  issues:
+    types: [opened, edited, reopened, labeled]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: aportes
+  cancel-in-progress: false
+
+jobs:
+  guardar:
+    if: contains(github.event.issue.labels.*.name, 'aporte-precio')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ISSUE: ${{ github.event.issue.number }}
+      RESPUESTA: ${{ runner.temp }}/respuesta.md
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # El texto del aviso se lee del archivo del evento, nunca se pega en un comando.
+      - name: Revisar el aporte
+        id: leer
+        run: node scripts/aporte.mjs
+
+      - name: Subir cambios
+        if: steps.leer.outputs.cambio == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/aportes.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Precio aportado (aviso #$ISSUE)"
+          for i in 1 2 3; do
+            git pull --rebase --quiet && git push && exit 0
+            sleep $((i * 10))
+          done
+          exit 1
+
+      - name: Responder en el aviso
+        env:
+          CERRAR: ${{ steps.leer.outputs.cerrar }}
+        run: |
+          if [ -s "$RESPUESTA" ]; then gh issue comment "$ISSUE" --body-file "$RESPUESTA"; fi
+          # Si el aviso ya estaba cerrado (por ejemplo, se editó después), no es un error.
+          if [ -n "$CERRAR" ]; then gh issue close "$ISSUE" --reason "$CERRAR" || true; fi

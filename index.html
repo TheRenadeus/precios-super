@@ -28,7 +28,7 @@ try { if (JSON.parse(localStorage.getItem('precios.tema')) === 'dark') document.
   --tag:#FFD23F;--on-tag:#1C2A1F;--tag-edge:#E2B21C;
   --up:#B42318;--down:#17703F;--warn:#A15C07;
   --grid:#EEE8D8;--shadow:0 1px 2px rgba(60,50,20,.06),0 4px 16px rgba(60,50,20,.05);
-  --s-jumbo:#257de0;--s-santaisabel:#cf5a1c;--s-tottus:#009a7b;--s-acuenta:#a8329a;--s-centralmayorista:#5c4a2e;--s-alvi:#6d28d9;--s-unimarc:#334155;
+  --s-jumbo:#257de0;--s-santaisabel:#cf5a1c;--s-tottus:#009a7b;--s-acuenta:#a8329a;--s-centralmayorista:#5c4a2e;--s-alvi:#6d28d9;--s-unimarc:#334155;--s-lider:#be123c;--s-super10:#4d7c0f;
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
@@ -38,7 +38,7 @@ try { if (JSON.parse(localStorage.getItem('precios.tema')) === 'dark') document.
   --tag:#FFD23F;--on-tag:#1C2A1F;--tag-edge:#FFD23F;
   --up:#F4877C;--down:#5BD08D;--warn:#E8B04A;
   --grid:#223026;--shadow:none;
-  --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;--s-centralmayorista:#e6d8b0;--s-alvi:#b69cff;--s-unimarc:#cbd5e1;
+  --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;--s-centralmayorista:#e6d8b0;--s-alvi:#b69cff;--s-unimarc:#cbd5e1;--s-lider:#f2708a;--s-super10:#9ccf5c;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -405,15 +405,22 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
     </div>
   </section>
 
-  <p class="foot">Precios publicados en internet por cada supermercado, leídos una vez al día. Pueden variar en tienda o según tu comuna.</p>
+  <p class="foot">Precios publicados en internet por cada supermercado, leídos una vez al día; los de Líder, Tottus y Super10 los aporta la gente. Pueden variar en tienda o según tu comuna.</p>
 </div>
 
 <dialog id="dlg" aria-labelledby="dName"><div class="dlg" id="dlgBody"></div></dialog>
 
 <script>
 const DATA = 'data/';
-const TIENDAS = ['jumbo', 'santaisabel', 'tottus', 'unimarc', 'acuenta', 'alvi', 'centralmayorista'];
-const NOMBRES = { jumbo: 'Jumbo', santaisabel: 'Santa Isabel', tottus: 'Tottus', unimarc: 'Unimarc', acuenta: 'aCuenta', alvi: 'Alvi', centralmayorista: 'Central Mayorista' };
+const TIENDAS = ['jumbo', 'santaisabel', 'tottus', 'unimarc', 'acuenta', 'alvi', 'centralmayorista', 'lider', 'super10'];
+// Con archivo data/<tienda>.json. Líder y Super10 solo tienen precios aportados por la gente (data/aportes.json).
+const LEIDAS = ['jumbo', 'santaisabel', 'tottus', 'unimarc', 'acuenta', 'alvi', 'centralmayorista'];
+// Sin lectura automática diaria: no se avisa que "no hubo lectura nueva hoy".
+const SIN_LECTURA = new Set(['tottus', 'lider', 'super10']);
+const REPO = 'https://github.com/TheRenadeus/precios-super';
+const APORTE_DIAS = 14; // un precio aportado cuenta como actual durante estos días
+const aportarUrl = p => REPO + '/issues/new?template=aportar-precio.yml' + (p ? '&producto=' + encodeURIComponent(p.n) + '&marca=' + encodeURIComponent(p.m || '') : '');
+const NOMBRES = { jumbo: 'Jumbo', santaisabel: 'Santa Isabel', tottus: 'Tottus', unimarc: 'Unimarc', acuenta: 'aCuenta', alvi: 'Alvi', centralmayorista: 'Central Mayorista', lider: 'Líder', super10: 'Super10' };
 const color = s => `var(--s-${s})`;
 
 const $ = id => document.getElementById(id);
@@ -486,11 +493,12 @@ function changeSince(p, days) {
 }
 
 async function cargar() {
-  const res = await Promise.all(TIENDAS.map(t => fetch(DATA + t + '.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null)));
+  const leer = f => fetch(DATA + f, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null);
+  const [res, ap] = await Promise.all([Promise.all(LEIDAS.map(t => leer(t + '.json'))), leer('aportes.json')]);
   let min = null, max = null;
   res.forEach((db, i) => {
     if (!db || !db.productos) return;
-    const s = TIENDAS[i];
+    const s = LEIDAS[i];
     ESTADO[s] = { ...(db.estado || { ok: true, ultimoOk: db.fecha }), fecha: db.fecha };
     for (const [id, p] of Object.entries(db.productos)) {
       if (!p.h || !p.h.length) continue;
@@ -506,7 +514,46 @@ async function cargar() {
     }
   });
   HOY = max || '';
+  // Una tienda que dejó de leerse (por ejemplo Tottus) no compite con precios de hace días.
+  for (const p of ALL) if (p.fresh && ESTADO[p.store].fecha < addDays(HOY, -3)) p.fresh = false;
+  for (const o of productosAportados((ap && ap.aportes) || [])) {
+    ALL.push(o); BYKEY.set(o.key, o);
+    if (!min || o.h[0][0] < min) min = o.h[0][0];
+  }
   if (min) for (let d = min; d <= max; d = addDays(d, 1)) DATES.push(d);
+}
+
+// Precios que aporta la gente con el formulario de GitHub (scripts/aporte.mjs).
+// Los avisos del mismo producto en la misma tienda forman su historial; el mismo día vale el último aviso.
+function productosAportados(lista) {
+  const por = new Map();
+  for (const a of lista) {
+    if (!NOMBRES[a.t] || !a.f || a.f > HOY) continue;
+    const id = 'ap-' + norm(a.n + ' ' + a.m).replace(/[^a-z0-9]+/g, '-');
+    if (!por.has(a.t + ':' + id)) por.set(a.t + ':' + id, { s: a.t, id, xs: [] });
+    por.get(a.t + ':' + id).xs.push(a);
+  }
+  const out = [];
+  for (const [key, { s, id, xs }] of por) {
+    xs.sort((a, b) => a.f < b.f ? -1 : a.f > b.f ? 1 : a.id - b.id);
+    const h = [];
+    for (const a of xs) {
+      const fila = [a.f, a.p, a.o || null, null], ult = h[h.length - 1];
+      if (ult && ult[0] === a.f) h[h.length - 1] = fila;
+      else if (!ult || ult[1] !== fila[1] || ult[2] !== fila[2]) h.push(fila);
+    }
+    const u = xs[xs.length - 1], last = h[h.length - 1];
+    const marca = /^sin marca$/i.test(u.m) ? '' : u.m;
+    // La marca va también en el nombre (como en las tiendas): así se empareja con el mismo producto.
+    const nombre = marca && !norm(u.n).includes(norm(marca)) ? u.n + ' ' + marca : u.n;
+    const o = { key, store: s, id, n: nombre, m: marca, u: REPO + '/issues/' + u.id, i: '', t: [], v: u.f, h, out: false,
+      price: last[1], normal: last[2], card: null, fresh: u.f >= addDays(HOY, -APORTE_DIAS), k: 1, steps: null, ap: { l: u.l, n: xs.length } };
+    o.size = tamanoPaquete(o.n, o.k);
+    o.unit = unitPrice(o);
+    o.search = norm(o.n + ' ' + o.m);
+    out.push(o);
+  }
+  return out;
 }
 
 // ---------- Gráfico de líneas (SVG a mano) ----------
@@ -695,7 +742,7 @@ function itemHtml(p, extra, below = '') {
     : `<div class="also">En ${g.miembros.length} tiendas · desde <b class="num">${precioUno(g.miembros[0])}</b> en ${NOMBRES[g.miembros[0].store]}</div>`) : '';
   return `<li class="item" tabindex="0" data-k="${esc(p.key)}">${img}
     <div><div class="name">${esc(p.n)}</div>
-      <div class="meta"><i class="dot" style="background:${color(p.store)}"></i><span>${NOMBRES[p.store]}${p.m ? ' · ' + esc(p.m) : ''}${p.fresh ? '' : ` · <span class="bad">no visto desde ${fDia(p.v)}</span>`}${p.out ? ' · agotado' : ''}</span></div>${otras}${below}</div>
+      <div class="meta"><i class="dot" style="background:${color(p.store)}"></i><span>${NOMBRES[p.store]}${p.m ? ' · ' + esc(p.m) : ''}${p.ap ? ` · <span class="${p.fresh ? '' : 'bad'}">aportado el ${fDia(p.v)}</span>` : p.fresh ? '' : ` · <span class="bad">no visto desde ${fDia(p.v)}</span>`}${p.out ? ' · agotado' : ''}</span></div>${otras}${below}</div>
     <div class="price"><b class="num${p.normal ? ' tag' : ''}"${p.normal ? ' title="Precio de oferta"' : ''}>${fmt(p.price)}</b>${p.normal ? `<div class="strike num"><span class="sr">Antes </span>${fmt(p.normal)}</div>` : ''}${u}${chg}</div></li>`;
 }
 
@@ -712,19 +759,26 @@ function renderMovers() {
 function renderStores() {
   $('stores').innerHTML = TIENDAS.map(s => {
     const e = ESTADO[s] || {};
-    const n = ALL.filter(p => p.store === s && p.fresh).length;
+    const n = ALL.filter(p => p.store === s && p.fresh && !p.ap).length;
+    const ap = ALL.filter(p => p.store === s && p.ap);
+    const apTxt = ap.length ? `${ap.length.toLocaleString('es-CL')} precio${ap.length === 1 ? '' : 's'} aportado${ap.length === 1 ? '' : 's'}<br>el último del ${fDia(ap.reduce((m, p) => p.v > m ? p.v : m, ''))}` : '';
+    if (!LEIDAS.includes(s)) return `<div class="store" style="--c:${color(s)}"><b>${NOMBRES[s]}</b><span class="st">${apTxt || 'Sin aportes todavía'}</span></div>`;
     const atrasada = e.fecha && e.fecha < HOY;
-    const st = !e.fecha ? '<span class="bad">Sin datos</span>'
+    const st = SIN_LECTURA.has(s) ? `Ya no se lee sola<br>leídos al ${fDia(e.fecha)}${ap.length ? ` · ${ap.length} aportado${ap.length === 1 ? '' : 's'}` : ''}`
+      : !e.fecha ? '<span class="bad">Sin datos</span>'
       : e.ok === false || atrasada ? `<span class="bad">Sin lectura nueva</span><br>precios del ${fDia(e.fecha)}`
       : `${n.toLocaleString('es-CL')} productos<br>al ${fDia(e.fecha)}`;
     return `<div class="store" style="--c:${color(s)}"><b>${NOMBRES[s]}</b><span class="st">${st}</span></div>`;
-  }).join('') + `<p class="hint" style="margin-top:10px;grid-column:1/-1">aCuenta: precios del local El Monte. Central Mayorista: local Macul, precios para comerciantes socios, por caja o pack (el precio por unidad divide por la cantidad). Alvi: precio por unidad; en la ficha, los precios por cantidad. No incluidos: Líder (su robots.txt prohíbe leer la búsqueda) y Mayorista 10 (ahora Super10, sin tienda online).</p>`;
-  const atrasadas = TIENDAS.filter(s => ESTADO[s] && ESTADO[s].fecha && (ESTADO[s].ok === false || ESTADO[s].fecha < HOY));
+  }).join('') + `<p class="hint" style="margin-top:10px;grid-column:1/-1">aCuenta: precios del local El Monte. Central Mayorista: local Macul, precios para comerciantes socios, por caja o pack (el precio por unidad divide por la cantidad). Alvi: precio por unidad; en la ficha, los precios por cantidad. Líder, Tottus y Super10 no se pueden leer automáticamente (Líder lo prohíbe en su robots.txt, Tottus bloquea a los programas que se identifican como robot y Super10 no tiene tienda en línea): sus precios los aporta la gente, con el local y la fecha. <a href="${aportarUrl()}" target="_blank" rel="noopener noreferrer">Aportar un precio</a> (se necesita una cuenta gratis de GitHub).</p>`;
+  const atrasadas = TIENDAS.filter(s => !SIN_LECTURA.has(s) && ESTADO[s] && ESTADO[s].fecha && (ESTADO[s].ok === false || ESTADO[s].fecha < HOY));
   $('banner').innerHTML = atrasadas.length ? `<div class="banner">${atrasadas.map(s => `<b>${NOMBRES[s]}</b> muestra precios del ${fDia(ESTADO[s].fecha)}`).join(' · ')}. No hubo lectura nueva hoy.</div>` : '';
 }
 
 // ---------- Buscar ----------
 let sel = new Set(store.get('tiendas', TIENDAS));
+// Las tiendas que se suman a la app quedan marcadas aunque la persona ya haya guardado su selección.
+for (const s of TIENDAS) if (!store.get('tiendasConocidas', LEIDAS).includes(s)) sel.add(s);
+store.set('tiendasConocidas', TIENDAS); store.set('tiendas', [...sel]);
 let shown = 60;
 function renderStoreChips() {
   $('storeChips').innerHTML = TIENDAS.map(s => `<button class="chip" data-s="${s}" aria-pressed="${sel.has(s)}"><i class="dot" style="background:${color(s)}"></i>${NOMBRES[s]}</button>`).join('');
@@ -798,7 +852,7 @@ function indiceTamanos() {
 // Palabras que distinguen variantes del mismo producto: si una está en un nombre y no en el otro, no son iguales
 // (leche "chocolate" vs leche sola, porotos "granados" vs "negros", "sin lactosa", "semidescremada"...).
 const VARIANTE = new Set(('chocolate vainilla frutilla platano manjar durazno pina mango coco caramelo limon naranja frambuesa berries '
-  + 'lactosa a2 light zero diet proteina descremada semidescremada entera negro negros negra granado granados hallado hallados '
+  + 'lactosa zerolacto deslactosada a2 light zero diet proteina descremada semidescremada entera negro negros negra granado granados hallado hallados '
   + 'tinto tintos integral rojo rojos roja verde verdes blanco blancos blanca amarillo amarilla dulce picante ahumado '
   + 'pollo carne vacuno cerdo atun jurel salmon queso jamon mantequilla aceituna '
   + 'ultra premium stevia sucralosa basmati jazmin arborio g1 g2 descafeinado minions hass edranol whitening').split(/\s+/));
@@ -871,6 +925,8 @@ function grupos() {
     for (const e of eq) if (miembros.every(m => compatibles(m, e.q))) miembros.push(e.q);
     if (miembros.length < 2) continue;
     miembros.sort((x, y) => porUno(x) - porUno(y));
+    // Un precio aportado no trae categoría: toma la del mismo producto en otras tiendas.
+    for (const m of miembros) if (m.ap && !m.t.length) m.t = [...new Set(miembros.flatMap(x => x.t))];
     miembros.forEach(m => usados.add(m.key));
     const g = { p, miembros, min: porUno(miembros[0]), t: [...new Set(miembros.flatMap(m => m.t))] };
     GRUPOS.push(g);
@@ -1136,7 +1192,7 @@ function tablaPrecios(p, eq, esMasBarato) {
     <ul class="tlist">${filas.map(({ q, este }) => {
       const d = (porUno(q) / base - 1) * 100;
       const fila = `<i class="dot" style="background:${color(q.store)}"></i>
-        <span class="tname"><b>${NOMBRES[q.store]}</b>${este ? '<small class="este">estás viendo</small>' : ''}${esMasBarato(q) ? '<small class="win-lbl">más barato</small>' : ''}${!q.fresh ? `<small class="bad">precio del ${fDia(q.v)}</small>` : ''}${esPaquete(q) ? `<small class="hint">${(q.n.match(/[a-z]+x\d+$/i) || ['pack de ' + q.k])[0]}: ${fmt(q.price)}</small>` : ''}</span>
+        <span class="tname"><b>${NOMBRES[q.store]}</b>${este ? '<small class="este">estás viendo</small>' : ''}${esMasBarato(q) ? '<small class="win-lbl">más barato</small>' : ''}${q.ap ? `<small class="${q.fresh ? 'hint' : 'bad'}">aportado el ${fDia(q.v)}</small>` : !q.fresh ? `<small class="bad">precio del ${fDia(q.v)}</small>` : ''}${esPaquete(q) ? `<small class="hint">${(q.n.match(/[a-z]+x\d+$/i) || ['pack de ' + q.k])[0]}: ${fmt(q.price)}</small>` : ''}</span>
         <span class="tprice"><b class="num${q.normal ? ' tag' : ''}">${precioUno(q)}</b>${q.normal ? `<s class="strike num">${fmt(q.normal)}</s>` : ''}${q.unit ? `<small class="unit num">${fmt(q.unit.v)}/${q.unit.u}</small>` : ''}</span>
         <span class="tdif">${este ? '' : `<span class="chg ${d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat'}">${pct(d)}</span>`}</span>`;
       return `<li class="${esMasBarato(q) ? 'win' : ''}${este ? ' este' : ''}">${este ? `<div class="trow">${fila}</div>` : `<button class="trow" data-k="${esc(q.key)}" aria-label="Ver ${esc(q.n)} en ${NOMBRES[q.store]}">${fila}</button>`}</li>`;
@@ -1172,7 +1228,7 @@ function abrir(key) {
       ${p.unit ? `<span><b class="num">${fmt(p.unit.v)}</b> por ${p.unit.u === 'c/u' ? 'unidad' : p.unit.u}</span>` : ''}
       ${p.card ? `<span>Tarjeta CMR <b class="num">${fmt(p.card)}</b></span>` : ''}
       ${p.steps ? `<span>Por cantidad: ${p.steps.map(([q, v]) => `desde ${q} un <b class="num">${fmt(v)}</b>`).join(' · ')} c/u</span>` : ''}
-      <span>${p.fresh ? 'Precio del ' + fDia(p.v) : '<span class="bad">No aparece desde el ' + fDia(p.v) + '</span>'}${p.out ? ' · agotado en la web' : ''}</span>
+      <span>${p.ap ? `<span class="${p.fresh ? '' : 'bad'}">Precio aportado el ${fDia(p.v)}</span> en ${esc(p.ap.l)}${p.ap.n > 1 ? ` · ${p.ap.n} aportes` : ''}` : p.fresh ? 'Precio del ' + fDia(p.v) : '<span class="bad">No aparece desde el ' + fDia(p.v) + '</span>'}${p.out ? ' · agotado en la web' : ''}</span>
     </div>
     </div>
     <div id="dChart" class="chart"></div>
@@ -1190,7 +1246,8 @@ function abrir(key) {
       <button class="btn" data-add="${esc(key)}">${canasta.some(x => x.k === key) ? '✓ En tu canasta (+1)' : '🛒 Agregar a mi canasta'}</button>
       <button class="btn ghost" data-duo="${esc(key)}">⇄ Comparar con otro</button>
       <button class="btn ghost" id="dFav" aria-pressed="${fav}">${fav ? '★ Siguiendo' : '☆ Seguir'}</button>
-      <a class="btn ghost" href="${esc(p.u)}" target="_blank" rel="noopener noreferrer">Ver en ${NOMBRES[p.store]} ↗</a>
+      <a class="btn ghost" href="${esc(p.u)}" target="_blank" rel="noopener noreferrer">${p.ap ? 'Ver el aporte' : 'Ver en ' + NOMBRES[p.store]} ↗</a>
+      <a class="btn ghost" href="${esc(aportarUrl(p))}" target="_blank" rel="noopener noreferrer">✎ Aportar su precio en Líder, Tottus o Super10</a>
     </div>`;
   const dlg = $('dlg');
   if (!dlg.open) dlg.showModal();

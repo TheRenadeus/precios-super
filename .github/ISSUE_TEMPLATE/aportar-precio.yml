@@ -1,0 +1,58 @@
+name: Aportar un precio
+description: Cuéntanos el precio de un producto en Líder, Tottus o Super10, que no se pueden leer automáticamente.
+title: "Precio aportado"
+labels: ["aporte-precio"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por aportar. Al enviarlo, un robot lo revisa y lo suma a la app en uno o dos minutos; después te responde aquí y cierra el aviso.
+        Escribe **un producto por aviso**, tal como sale en la etiqueta de la góndola o en la boleta.
+  - type: dropdown
+    id: tienda
+    attributes:
+      label: Supermercado
+      options:
+        - Líder
+        - Tottus
+        - Super10
+    validations:
+      required: true
+  - type: input
+    id: producto
+    attributes:
+      label: Producto
+      description: Nombre con tamaño. Ejemplo — Leche entera 1 L, Arroz grado 1 1 kg, Papel higiénico 12 rollos 30 m.
+    validations:
+      required: true
+  - type: input
+    id: marca
+    attributes:
+      label: Marca
+      description: Ejemplo — Soprole, Tucapel, Elite. Si no tiene marca, escribe "sin marca".
+    validations:
+      required: true
+  - type: input
+    id: precio
+    attributes:
+      label: Precio que pagas, en pesos
+      description: Solo el número, sin punto ni $. Ejemplo — 1290
+    validations:
+      required: true
+  - type: input
+    id: normal
+    attributes:
+      label: Precio normal, si está en oferta
+      description: Déjalo vacío si no está en oferta.
+  - type: input
+    id: local
+    attributes:
+      label: Local o comuna
+      description: Ejemplo — Líder Express Ñuñoa, o solo la comuna.
+    validations:
+      required: true
+  - type: input
+    id: fecha
+    attributes:
+      label: Fecha, si no es hoy
+      description: Formato día-mes-año, por ejemplo 24-11-2026. Vacío = hoy.
