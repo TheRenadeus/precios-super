@@ -30,11 +30,12 @@ jobs:
           node-version: 22
 
       # Tottus bloquea a los programas que se identifican como robot: queda fuera (ver README).
+      # Easy responde 403 a los servidores de GitHub (desde un computador sí responde): no va aquí.
       # El nombre de las tiendas viene por variable de entorno, nunca pegado en el comando.
       - name: Leer precios de supermercados y ferreterías
         env:
           TIENDAS: ${{ inputs.tiendas }}
-        run: node scripts/update-prices.mjs ${TIENDAS:-jumbo santaisabel unimarc acuenta alvi centralmayorista easy sodimac}
+        run: node scripts/update-prices.mjs ${TIENDAS:-jumbo santaisabel unimarc acuenta alvi centralmayorista sodimac}
 
       - name: Subir cambios
         run: |
