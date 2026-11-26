@@ -47,6 +47,7 @@ function contexto(rubro, zona) {
   const R = RUBROS[rubro];
   const dbs = Object.fromEntries(R.leidas.map(s => [s, leerJson(join(DATA, s + '.json'))]));
   const aportes = R.aportes ? (leerJson(join(DATA, 'aportes.json'))?.aportes || []) : [];
+  const cats = leerJson(join(RAIZ, 'categorias.json'))?.[rubro] || {};
   const ctx = vm.createContext({ console, __dbs: dbs, __aportes: aportes });
   vm.runInContext(`const TIENDAS = ${JSON.stringify(R.tiendas)}; const LEIDAS = ${JSON.stringify(R.leidas)};
     const NOMBRES = ${JSON.stringify(NOMBRES)}; const ALL = []; const BYKEY = new Map(); const ESTADO = {};
@@ -55,9 +56,14 @@ function contexto(rubro, zona) {
     ${CORE}
     cargarDatos(__dbs, __aportes); grupos();
     globalThis.api = { ALL, BYKEY, ESTADO, DATES, get HOY() { return HOY; }, TIENDAS, LEIDAS, GRUPO_DE, grupos, equivalentes, changeSince, porUno,
-      esPaquete, gana, enCat, indice, elegir, ofertas, norm };`, ctx, { timeout: 60000 });
+      esPaquete, gana, enCat, indice, elegir, ofertas, norm, terminosCategoria, enTerminos, tieneCaracteristica, descuento, CARACTERISTICAS };`, ctx, { timeout: 60000 });
   const c = ctx.api;
-  c.categorias = [...new Set(c.ALL.flatMap(p => p.t))].sort((a, b) => a.localeCompare(b, 'es'));
+  // Categorías con subcategorías, solo las que tienen productos.
+  const hay = new Set(c.ALL.flatMap(p => p.t));
+  c.CAT = cats;
+  c.categorias = Object.entries(cats).map(([cat, subs]) => [cat, Object.entries(subs).filter(([, ts]) => ts.some(t => hay.has(t))).map(([sub]) => sub)])
+    .filter(([, subs]) => subs.length);
+  c.caracteristicas = Object.entries(c.CARACTERISTICAS).map(([k, [nombre]]) => [k, nombre]);
   c.indices = {};
   contextos.set(k, c);
   return c;
@@ -86,7 +92,7 @@ function inicio(c) {
   }
   const indices = {};
   if (c.DATES.length >= 2) for (const d of [30, 90, 365, 0]) indices[d] = c.indices[d] || (c.indices[d] = c.indice(d));
-  return { hoy: c.HOY, dias: c.DATES.length, estado: c.ESTADO, conteos, categorias: c.categorias, indices,
+  return { hoy: c.HOY, dias: c.DATES.length, estado: c.ESTADO, conteos, categorias: c.categorias, caracteristicas: c.caracteristicas, indices,
     ups: ups.map(o => ({ ...resumen(c, o.p), ch: o.ch })), downs: downs.map(o => ({ ...resumen(c, o.p), ch: o.ch })) };
 }
 
@@ -95,14 +101,17 @@ function buscar(c, q) {
   const words = texto ? texto.split(' ') : [];
   const sel = new Set((q.tiendas || c.TIENDAS.join(',')).split(',').filter(s => c.TIENDAS.includes(s)));
   const cat = q.cat || '', sort = q.orden || 'rel';
+  const ts = c.terminosCategoria(c.CAT, cat, q.sub || '');
+  const car = (q.car || '').split(',').filter(k => c.CARACTERISTICAS[k]);
   const f = { oferta: q.oferta === '1', baja: q.baja === '1', varias: q.varias === '1', hoy: q.hoy === '1', marca: q.marca || '', uni: q.uni || '',
-    min: q.min ? +q.min : null, max: q.max ? +q.max : null };
-  const nf = [f.oferta, f.baja, f.varias, f.hoy, f.marca, f.uni, f.min != null, f.max != null].filter(Boolean).length;
+    min: q.min ? +q.min : null, max: q.max ? +q.max : null, desc: +q.desc || 0, tarjeta: q.tarjeta === '1', disp: q.disp === '1' };
+  const nf = [f.oferta, f.baja, f.varias, f.hoy, f.marca, f.uni, f.min != null, f.max != null, f.desc, f.tarjeta, f.disp, car.length].filter(Boolean).length;
   const pasa = p => (!f.oferta || p.normal) && (!f.baja || (c.changeSince(p, 30) ?? 0) < -0.5)
     && (!f.varias || (c.GRUPO_DE.get(p.key)?.miembros.length || 0) > 1) && (!f.hoy || p.fresh)
     && (!f.uni || (f.uni === 'u' ? !p.unit || p.unit.u === 'c/u' : p.unit && p.unit.u === f.uni))
-    && (f.min == null || p.price >= f.min) && (f.max == null || p.price <= f.max);
-  let r = c.ALL.filter(p => sel.has(p.store) && (!cat || p.t.includes(cat)) && words.every(w => p.search.includes(w)) && pasa(p));
+    && (f.min == null || p.price >= f.min) && (f.max == null || p.price <= f.max)
+    && (!f.desc || c.descuento(p) >= f.desc) && (!f.tarjeta || p.card) && (!f.disp || !p.out) && car.every(k => c.tieneCaracteristica(p, k));
+  let r = c.ALL.filter(p => sel.has(p.store) && c.enTerminos(p, ts) && words.every(w => p.search.includes(w)) && pasa(p));
   // Marcas de lo que cumple los demás filtros (la elegida se aplica después).
   const por = new Map();
   for (const p of r) {
@@ -133,7 +142,7 @@ function buscar(c, q) {
     up30: (a, b) => (c30(b) ?? -1e9) - (c30(a) ?? -1e9),
     down30: (a, b) => (c30(a) ?? 1e9) - (c30(b) ?? 1e9),
   };
-  const portada = !texto && !cat && sort === 'rel' && !nf;
+  const portada = !texto && !ts && sort === 'rel' && !nf;
   r.sort(portada ? (a, b) => (b.fresh - a.fresh) || orden.disc(a, b) : (orden[sort] || orden.rel));
   const desde = Math.max(0, +q.desde || 0), n = Math.min(200, Math.max(1, +q.n || 60));
   return { total: r.length, portada, marcas, filas: r.slice(desde, desde + n).map(p => resumen(c, p)) };
@@ -146,8 +155,8 @@ function producto(c, k) {
 }
 
 function comparar(c, q) {
-  const cat = q.cat || '';
-  const G = c.grupos().filter(g => c.enCat(g, cat));
+  const ts = c.terminosCategoria(c.CAT, q.cat || '', q.sub || '');
+  const G = c.grupos().filter(g => !ts || g.t.some(t => ts.has(t)));
   const MIN_T = c.TIENDAS.length > 3 ? 3 : 2;
   const G3 = G.filter(g => g.miembros.length >= MIN_T);
   const mediana = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };

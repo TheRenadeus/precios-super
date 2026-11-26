@@ -286,6 +286,27 @@ function grupos() {
 const enCat = (g, cat) => !cat || g.t.includes(cat);
 const gana = (m, g) => porUno(m) <= g.min * 1.005; // empate si la diferencia es menor a 0,5 %
 
+// ---------- Filtros: categorías y características ----------
+// cats: la parte del rubro de categorias.json, { Categoría: { Subcategoría: [términos] } }.
+// Devuelve los términos de esa categoría (o solo de la subcategoría), o null si no se filtra.
+function terminosCategoria(cats, cat, sub) {
+  if (!cat || !cats || !cats[cat]) return null;
+  const subs = cats[cat];
+  return new Set(sub && subs[sub] ? subs[sub] : Object.values(subs).flat());
+}
+const enTerminos = (p, ts) => !ts || p.t.some(t => ts.has(t));
+// Características que se leen del nombre del producto.
+const CARACTERISTICAS = {
+  sinlactosa: ['Sin lactosa', /\bsin lactosa\b|deslactosad|zerolacto|lactose free/],
+  sinazucar: ['Sin azúcar, light o zero', /\bsin azucar\b|\bzero\b|\blight\b|0% azucar/],
+  singluten: ['Sin gluten', /\bsin gluten\b|gluten free|libre de gluten/],
+  integral: ['Integral', /\bintegral/],
+  organico: ['Orgánico', /\borganic|\borganico/],
+  vegetal: ['Vegano o vegetal', /\bvegan|\bvegetal\b|plant based|a base de plantas/],
+};
+const tieneCaracteristica = (p, k) => !!CARACTERISTICAS[k] && CARACTERISTICAS[k][1].test(p.search);
+const descuento = p => p.normal ? (1 - p.price / p.normal) * 100 : 0;
+
 // Buscador chico (canasta y producto a producto): primero los que están en más tiendas, después los más baratos.
 function elegir(q, limite = 6) {
   const words = norm(q).split(' ').filter(Boolean);
