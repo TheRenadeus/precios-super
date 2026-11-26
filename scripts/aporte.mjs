@@ -11,6 +11,10 @@ import { createHash } from 'node:crypto';
 
 const ARCHIVO = 'data/aportes.json';
 const TIENDAS = { 'Líder': 'lider', 'Tottus': 'tottus', 'Super10': 'super10' };
+// Mismos nombres que el formulario; el código es el que usa la app (index.html, REGIONES).
+const REGIONES = { 'Arica y Parinacota': 'AP', 'Tarapacá': 'TA', 'Antofagasta': 'AN', 'Atacama': 'AT', 'Coquimbo': 'CO', 'Valparaíso': 'VA',
+  'Metropolitana': 'RM', "O'Higgins": 'LI', 'Maule': 'ML', 'Ñuble': 'NB', 'Biobío': 'BI', 'La Araucanía': 'AR', 'Los Ríos': 'LR',
+  'Los Lagos': 'LL', 'Aysén': 'AI', 'Magallanes': 'MA' };
 const MAX_POR_DIA = 40; // aportes por persona y día
 const APP = 'https://therenadeus.github.io/precios-super/';
 
@@ -23,6 +27,7 @@ let respuesta = '', cerrar = '', cambio = false;
 
 const diaChile = iso => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date(iso));
 const fmt = n => '$' + n.toLocaleString('es-CL');
+const c_region = r => Object.keys(REGIONES).find(k => REGIONES[k] === r) || r;
 const fDia = d => d.split('-').reverse().join('-');
 function quitar() {
   const antes = db.aportes.length;
@@ -59,6 +64,8 @@ function revisar() {
   const n = limpio(c['Producto'], 120), m = limpio(c['Marca'], 40), l = limpio(c['Local o comuna'], 80);
   if (n.length < 3) errores.push('Escribe el nombre del producto, con su tamaño.');
   else if (!/\d/.test(n)) errores.push('Al nombre del producto le falta el tamaño (por ejemplo 1 L, 500 g o 12 rollos).');
+  const r = REGIONES[c['Región']];
+  if (!r) errores.push('Elige la región del supermercado.');
   if (!m) errores.push('Escribe la marca (o "sin marca").');
   if (!l) errores.push('Escribe el local o la comuna.');
   if ([n, m, l].some(t => /https?:|www\.|\.(com|cl|net)\b/i.test(t))) errores.push('No se aceptan enlaces en el aporte.');
@@ -77,7 +84,7 @@ function revisar() {
   const s = createHash('sha256').update('precios-super:' + (issue.user?.id ?? issue.user?.login ?? '')).digest('hex').slice(0, 10);
   const hoyDeEsa = db.aportes.filter(a => a.s === s && a.c === hoy && a.id !== issue.number).length;
   if (hoyDeEsa >= MAX_POR_DIA) errores.push(`Por hoy ya van ${MAX_POR_DIA} aportes tuyos; mañana puedes seguir.`);
-  return { errores, aporte: { id: issue.number, t: tienda, n, m, p, o, l, f, c: hoy, s } };
+  return { errores, aporte: { id: issue.number, t: tienda, n, m, p, o, l, r, f, c: hoy, s } };
 }
 
 if (etiquetas.includes('rechazado')) {
@@ -100,7 +107,7 @@ if (etiquetas.includes('rechazado')) {
     cambio = true;
     const nombre = Object.keys(TIENDAS).find(k => TIENDAS[k] === aporte.t);
     respuesta = `Listo, gracias: **${aporte.n}** (${aporte.m}) a **${fmt(aporte.p)}**` +
-      (aporte.o ? ` (normal ${fmt(aporte.o)})` : '') + ` en **${nombre}**, ${aporte.l}, el ${fDia(aporte.f)}.\n\n` +
+      (aporte.o ? ` (normal ${fmt(aporte.o)})` : '') + ` en **${nombre}**, ${aporte.l} (${c_region(aporte.r)}), el ${fDia(aporte.f)}.\n\n` +
       `En unos minutos aparece en ${APP}. Si algo quedó mal, edita el aviso y se corrige solo.`;
     cerrar = 'completed';
   }

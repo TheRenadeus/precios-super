@@ -44,6 +44,30 @@ body:
     attributes:
       label: Precio normal, si está en oferta
       description: Déjalo vacío si no está en oferta.
+  - type: dropdown
+    id: region
+    attributes:
+      label: Región
+      description: Donde está el supermercado. La app muestra a cada persona los precios de su región.
+      options:
+        - Arica y Parinacota
+        - Tarapacá
+        - Antofagasta
+        - Atacama
+        - Coquimbo
+        - Valparaíso
+        - Metropolitana
+        - O'Higgins
+        - Maule
+        - Ñuble
+        - Biobío
+        - La Araucanía
+        - Los Ríos
+        - Los Lagos
+        - Aysén
+        - Magallanes
+    validations:
+      required: true
   - type: input
     id: local
     attributes:

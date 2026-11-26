@@ -237,6 +237,12 @@ th{color:var(--muted);font-weight:600}
 /* Ficha del producto */
 dialog{border:0;padding:0;border-radius:22px;background:var(--surface);color:var(--ink);width:min(680px,calc(100vw - 24px));max-height:calc(100dvh - 24px);box-shadow:0 20px 60px rgba(0,0,0,.25)}
 dialog::backdrop{background:rgba(20,25,15,.5)}
+.zona{margin-top:6px;min-height:32px;padding:4px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:transparent;color:var(--on-hero);font:inherit;font-size:.86rem;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+#zonaDlg{width:min(440px,calc(100vw - 24px))}
+.zonabox{padding:18px 16px;display:grid;gap:12px}
+.zonabox h3{margin:0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.2rem}
+.zonabox p{margin:0}
+.zonabox .fila{display:flex;gap:8px;flex-wrap:wrap}
 .dlg{padding:18px 16px}
 .dlg-head{display:grid;grid-template-columns:88px 1fr 44px;gap:14px;align-items:start}
 .dlg-head img,.dlg-head .ph{width:88px;height:88px;border-radius:16px}
@@ -294,6 +300,7 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
     <div>
       <h1>Precios súper</h1>
       <div class="sub" id="sub">Cargando precios…</div>
+      <button class="zona" id="zonaBtn" type="button" aria-haspopup="dialog">📍 <span id="zonaTxt">Todo Chile</span> ▾</button>
     </div>
     <button class="theme" id="themeBtn" type="button" aria-label="Cambiar a modo oscuro">☾</button>
   </div>
@@ -421,6 +428,14 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
 </div>
 
 <dialog id="dlg" aria-labelledby="dName"><div class="dlg" id="dlgBody"></div></dialog>
+<dialog id="zonaDlg" aria-labelledby="zonaTit"><form class="zonabox" method="dialog">
+  <h3 id="zonaTit">¿En qué región compras?</h3>
+  <p class="hint">Los precios que aporta la gente (Líder, Tottus, Super10) son de un local: verás los de tu región. Los precios leídos de las páginas web son los que cada supermercado muestra sin elegir comuna.</p>
+  <label><span class="sr">Región</span><select id="zonaSel" class="txt"></select></label>
+  <div class="fila"><button class="btn ghost" type="button" id="zonaGps">📍 Usar mi ubicación</button></div>
+  <p class="hint" id="zonaMsg" role="status">Tu ubicación se usa solo en este teléfono para elegir la región; no se envía a ningún lado.</p>
+  <div class="fila"><button class="btn" value="ok">Listo</button><button class="btn ghost" value="" formnovalidate>Cancelar</button></div>
+</form></dialog>
 
 <script>
 const DATA = 'data/';
@@ -430,8 +445,16 @@ const LEIDAS = ['jumbo', 'santaisabel', 'tottus', 'unimarc', 'acuenta', 'alvi', 
 // Sin lectura automática diaria: no se avisa que "no hubo lectura nueva hoy".
 const SIN_LECTURA = new Set(['tottus', 'lider', 'super10']);
 const REPO = 'https://github.com/TheRenadeus/precios-super';
+// Regiones de Chile: código (el mismo de scripts/aporte.mjs), nombre y su capital, para elegir con el GPS.
+const REGIONES = [['AP', 'Arica y Parinacota', -18.48, -70.31], ['TA', 'Tarapacá', -20.21, -70.15], ['AN', 'Antofagasta', -23.65, -70.4],
+  ['AT', 'Atacama', -27.37, -70.33], ['CO', 'Coquimbo', -29.95, -71.3], ['VA', 'Valparaíso', -33.05, -71.62], ['RM', 'Metropolitana', -33.45, -70.66],
+  ['LI', "O'Higgins", -34.17, -70.74], ['ML', 'Maule', -35.43, -71.67], ['NB', 'Ñuble', -36.61, -72.1], ['BI', 'Biobío', -36.83, -73.05],
+  ['AR', 'La Araucanía', -38.74, -72.6], ['LR', 'Los Ríos', -39.81, -73.25], ['LL', 'Los Lagos', -41.47, -72.94], ['AI', 'Aysén', -45.57, -72.07],
+  ['MA', 'Magallanes', -53.16, -70.92]];
+const REGION = Object.fromEntries(REGIONES.map(([c, n]) => [c, n]));
+const ZONA = (() => { try { const z = JSON.parse(localStorage.getItem('precios.zona')); return REGION[z] ? z : null; } catch { return null; } })();
 const APORTE_DIAS = 14; // un precio aportado cuenta como actual durante estos días
-const aportarUrl = p => REPO + '/issues/new?template=aportar-precio.yml' + (p ? '&producto=' + encodeURIComponent(p.n) + '&marca=' + encodeURIComponent(p.m || '') : '');
+const aportarUrl = p => REPO + '/issues/new?template=aportar-precio.yml' + (p ? '&producto=' + encodeURIComponent(p.n) + '&marca=' + encodeURIComponent(p.m || '') : '') + (ZONA ? '&region=' + encodeURIComponent(REGION[ZONA]) : '');
 const NOMBRES = { jumbo: 'Jumbo', santaisabel: 'Santa Isabel', tottus: 'Tottus', unimarc: 'Unimarc', acuenta: 'aCuenta', alvi: 'Alvi', centralmayorista: 'Central Mayorista', lider: 'Líder', super10: 'Super10' };
 const color = s => `var(--s-${s})`;
 
@@ -541,7 +564,9 @@ function productosAportados(lista) {
   const por = new Map();
   for (const a of lista) {
     if (!NOMBRES[a.t] || !a.f || a.f > HOY) continue;
-    const id = 'ap-' + norm(a.n + ' ' + a.m).replace(/[^a-z0-9]+/g, '-');
+    if (ZONA && a.r && a.r !== ZONA) continue; // con zona elegida, solo los aportes de esa región
+    // Cada región por separado: el mismo producto puede costar distinto en otra región.
+    const id = 'ap-' + (a.r ? a.r.toLowerCase() + '-' : '') + norm(a.n + ' ' + a.m).replace(/[^a-z0-9]+/g, '-');
     if (!por.has(a.t + ':' + id)) por.set(a.t + ':' + id, { s: a.t, id, xs: [] });
     por.get(a.t + ':' + id).xs.push(a);
   }
@@ -559,7 +584,7 @@ function productosAportados(lista) {
     // La marca va también en el nombre (como en las tiendas): así se empareja con el mismo producto.
     const nombre = marca && !norm(u.n).includes(norm(marca)) ? u.n + ' ' + marca : u.n;
     const o = { key, store: s, id, n: nombre, m: marca, u: REPO + '/issues/' + u.id, i: '', t: [], v: u.f, h, out: false,
-      price: last[1], normal: last[2], card: null, fresh: u.f >= addDays(HOY, -APORTE_DIAS), k: 1, steps: null, ap: { l: u.l, n: xs.length } };
+      price: last[1], normal: last[2], card: null, fresh: u.f >= addDays(HOY, -APORTE_DIAS), k: 1, steps: null, ap: { l: u.l, r: u.r, n: xs.length } };
     o.size = tamanoPaquete(o.n, o.k);
     o.unit = unitPrice(o);
     o.search = norm(o.n + ' ' + o.m);
@@ -773,8 +798,8 @@ function renderStores() {
     const e = ESTADO[s] || {};
     const n = ALL.filter(p => p.store === s && p.fresh && !p.ap).length;
     const ap = ALL.filter(p => p.store === s && p.ap);
-    const apTxt = ap.length ? `${ap.length.toLocaleString('es-CL')} precio${ap.length === 1 ? '' : 's'} aportado${ap.length === 1 ? '' : 's'}<br>el último del ${fDia(ap.reduce((m, p) => p.v > m ? p.v : m, ''))}` : '';
-    if (!LEIDAS.includes(s)) return `<div class="store" style="--c:${color(s)}"><b>${NOMBRES[s]}</b><span class="st">${apTxt || 'Sin aportes todavía'}</span></div>`;
+    const apTxt = ap.length ? `${ap.length.toLocaleString('es-CL')} precio${ap.length === 1 ? '' : 's'} aportado${ap.length === 1 ? '' : 's'}${ZONA ? ' en tu región' : ''}<br>el último del ${fDia(ap.reduce((m, p) => p.v > m ? p.v : m, ''))}` : '';
+    if (!LEIDAS.includes(s)) return `<div class="store" style="--c:${color(s)}"><b>${NOMBRES[s]}</b><span class="st">${apTxt || (ZONA ? 'Sin aportes en tu región' : 'Sin aportes todavía')}</span></div>`;
     const atrasada = e.fecha && e.fecha < HOY;
     const st = SIN_LECTURA.has(s) ? `Ya no se lee sola<br>leídos al ${fDia(e.fecha)}${ap.length ? ` · ${ap.length} aportado${ap.length === 1 ? '' : 's'}` : ''}`
       : !e.fecha ? '<span class="bad">Sin datos</span>'
@@ -1243,7 +1268,7 @@ function abrir(key) {
       ${p.unit ? `<span><b class="num">${fmt(p.unit.v)}</b> por ${p.unit.u === 'c/u' ? 'unidad' : p.unit.u}</span>` : ''}
       ${p.card ? `<span>Tarjeta CMR <b class="num">${fmt(p.card)}</b></span>` : ''}
       ${p.steps ? `<span>Por cantidad: ${p.steps.map(([q, v]) => `desde ${q} un <b class="num">${fmt(v)}</b>`).join(' · ')} c/u</span>` : ''}
-      <span>${p.ap ? `<span class="${p.fresh ? '' : 'bad'}">Precio aportado el ${fDia(p.v)}</span> en ${esc(p.ap.l)}${p.ap.n > 1 ? ` · ${p.ap.n} aportes` : ''}` : p.fresh ? 'Precio del ' + fDia(p.v) : '<span class="bad">No aparece desde el ' + fDia(p.v) + '</span>'}${p.out ? ' · agotado en la web' : ''}</span>
+      <span>${p.ap ? `<span class="${p.fresh ? '' : 'bad'}">Precio aportado el ${fDia(p.v)}</span> en ${esc(p.ap.l)}${p.ap.r && REGION[p.ap.r] ? ' (' + esc(REGION[p.ap.r]) + ')' : ''}${p.ap.n > 1 ? ` · ${p.ap.n} aportes` : ''}` : p.fresh ? 'Precio del ' + fDia(p.v) : '<span class="bad">No aparece desde el ' + fDia(p.v) + '</span>'}${p.out ? ' · agotado en la web' : ''}</span>
     </div>
     </div>
     <div id="dChart" class="chart"></div>
@@ -1378,6 +1403,30 @@ let tk; $('kq').addEventListener('input', () => { clearTimeout(tk); tk = setTime
 let tp; $('pq').addEventListener('input', () => { clearTimeout(tp); tp = setTimeout(() => { grupos(); $('pPick').innerHTML = pickerHtml(elegir($('pq').value), 'duo', duo.length < 2 ? '⇄ Elegir' : '⇄ Cambiar B'); }, 150); });
 $('gMore').addEventListener('click', () => { cShown += 30; renderComparar(); });
 $('vsMore').addEventListener('click', () => { vShown += 20; renderComparar(); });
+// ---------- Zona (región) ----------
+$('zonaTxt').textContent = ZONA ? REGION[ZONA] : 'Todo Chile';
+$('zonaSel').innerHTML = '<option value="">Todo Chile (aportes de todas las regiones)</option>' + REGIONES.map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join('');
+$('zonaBtn').addEventListener('click', () => { $('zonaSel').value = ZONA || ''; $('zonaDlg').returnValue = ''; $('zonaDlg').showModal(); });
+$('zonaGps').addEventListener('click', () => {
+  const msg = $('zonaMsg');
+  if (!navigator.geolocation) { msg.textContent = 'Este navegador no puede dar tu ubicación: elige la región en la lista.'; return; }
+  msg.textContent = 'Buscando tu ubicación…';
+  navigator.geolocation.getCurrentPosition(pos => {
+    // La región cuya capital está más cerca. Es aproximado cerca de los límites: por eso se puede corregir en la lista.
+    const { latitude: la, longitude: lo } = pos.coords;
+    const d = ([, , a, b]) => (a - la) ** 2 + ((b - lo) * Math.cos(la * Math.PI / 180)) ** 2;
+    const r = REGIONES.reduce((m, x) => d(x) < d(m) ? x : m);
+    $('zonaSel').value = r[0];
+    msg.textContent = `Elegimos la región ${r[1]}, la más cercana a tu ubicación. Si no es la tuya, cámbiala en la lista.`;
+  }, () => { msg.textContent = 'No se pudo obtener tu ubicación (quizás no diste permiso): elige la región en la lista.'; },
+  { maximumAge: 600000, timeout: 15000 });
+});
+$('zonaDlg').addEventListener('close', () => {
+  if ($('zonaDlg').returnValue !== 'ok') return;
+  const z = $('zonaSel').value || null;
+  if (z !== ZONA) { store.set('zona', z); location.reload(); }
+});
+
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!$('view-tendencia').hidden) renderIndice(); }, 200); });
 
 (async () => {
