@@ -281,6 +281,56 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
 .btn{border:0;border-radius:14px;padding:14px;font-weight:700;cursor:pointer;background:var(--accent);color:var(--on-accent);text-align:center;text-decoration:none}
 .btn.ghost{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
 .foot{color:var(--muted);font-size:.8rem;margin-top:20px;text-align:center}
+
+/* Pestañas con ícono */
+.seg button{display:flex;align-items:center;justify-content:center;gap:7px}
+.seg .ico{flex:none}
+
+/* Productos en tarjetas: foto grande arriba, nombre y precio abajo */
+.list.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:10px}
+.cards .item{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px}
+.cards .item:first-child{background-image:none}
+.cards .item:hover,.cards .item:focus-visible{border-color:var(--accent);background-color:var(--surface)}
+.cards .item img,.cards .item .ph{width:100%;height:auto;aspect-ratio:1;border-radius:12px;padding:8px}
+.cards .item .ph{font-size:2rem}
+.cards .item > div:nth-child(2){flex:1;min-width:0}
+.cards .item .name{font-size:.94rem;min-height:2.5em}
+.cards .item .meta{flex-wrap:nowrap;align-items:flex-start;font-size:.78rem;gap:6px}
+.cards .item .meta .dot{margin-top:.35em;transform:none}
+.cards .item .meta > span{min-width:0}
+.cards .item .also{font-size:.78rem}
+.cards .item .price{text-align:left;align-items:baseline;flex-direction:row;flex-wrap:wrap;gap:2px 8px;white-space:normal}
+.cards .item .price .unit{flex-basis:100%}
+.cards .empty{grid-column:1/-1}
+
+/* Teléfono y tablet angosta: pestañas fijas abajo, como en una app */
+@media (max-width:759px){
+  .hero{padding-top:calc(18px + env(safe-area-inset-top))}
+  .seg{position:fixed;left:0;right:0;bottom:0;z-index:20;border-radius:0;border-width:1px 0 0;padding:6px 8px calc(6px + env(safe-area-inset-bottom));gap:4px;box-shadow:0 -6px 20px rgba(30,40,20,.08)}
+  .seg button{flex-direction:column;gap:3px;font-size:.74rem;padding:6px 2px;min-height:54px}
+  .seg button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+  .wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+  #banner .banner:first-child,.vista > .panel:first-child{margin-top:0}
+  .list.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .cards .item{padding:8px;gap:6px}
+  .cards .item img,.cards .item .ph{padding:6px}
+  .cards .item .price b{font-size:1.08rem}
+}
+
+/* PC: usa el ancho de la pantalla */
+@media (min-width:760px){
+  .seg{max-width:560px;margin:0 auto}
+}
+@media (min-width:1024px){
+  .hero-in,.wrap{max-width:1240px}
+  .vista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;align-items:start}
+  .vista > .full{grid-column:1/-1}
+  /* Buscar: filtros fijos a la izquierda, resultados a la derecha */
+  .vista.buscar{grid-template-columns:320px minmax(0,1fr)}
+  .buscar .filtros{position:sticky;top:14px}
+  .buscar .filtros .filters{grid-template-columns:1fr}
+  .list.cards{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:480px){
   .filters{grid-template-columns:1fr}
@@ -308,16 +358,16 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
 <div class="wrap">
 
   <div class="seg" role="tablist" aria-label="Secciones">
-    <button role="tab" data-view="tendencia" aria-selected="true">Tendencia</button>
-    <button role="tab" data-view="buscar" aria-selected="false">Buscar</button>
-    <button role="tab" data-view="comparar" aria-selected="false">Comparar</button>
-    <button role="tab" data-view="seguidos" aria-selected="false">Seguidos</button>
+    <button role="tab" data-view="tendencia" aria-selected="true"><svg class="ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span>Tendencia</span></button>
+    <button role="tab" data-view="buscar" aria-selected="false"><svg class="ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Buscar</span></button>
+    <button role="tab" data-view="comparar" aria-selected="false"><svg class="ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 7a3 3 0 0 0 6 0z"/><path d="M19 7l-3 7a3 3 0 0 0 6 0z"/></svg><span>Comparar</span></button>
+    <button role="tab" data-view="seguidos" aria-selected="false"><svg class="ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg><span>Seguidos</span></button>
   </div>
 
   <div id="banner"></div>
 
-  <section id="view-tendencia">
-    <div class="panel">
+  <section id="view-tendencia" class="vista">
+    <div class="panel full">
       <h2>Índice de precios por supermercado</h2>
       <p class="hint">100 = precio de cada producto el primer día del período. Compara los mismos productos día a día.</p>
       <div class="chips" id="rangeChips"></div>
@@ -328,21 +378,21 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
     <div class="panel">
       <h2>Mayores alzas</h2>
       <p class="hint" id="upHint">Últimos 7 días</p>
-      <ul class="list" id="ups"></ul>
+      <ul class="list cards" id="ups"></ul>
     </div>
     <div class="panel">
       <h2>Mayores bajas</h2>
       <p class="hint" id="downHint">Últimos 7 días</p>
-      <ul class="list" id="downs"></ul>
+      <ul class="list cards" id="downs"></ul>
     </div>
-    <div class="panel">
+    <div class="panel full">
       <h2>Supermercados</h2>
       <div class="stores" id="stores"></div>
     </div>
   </section>
 
-  <section id="view-buscar" hidden>
-    <div class="panel">
+  <section id="view-buscar" class="vista buscar" hidden>
+    <div class="panel filtros">
       <label class="sr" for="q">Buscar producto</label>
       <input id="q" class="txt" type="search" placeholder="Buscar: leche, arroz, Colun…" autocomplete="off">
       <details class="tsel" id="storeSel"><summary id="storeSum"></summary><div class="tgrid" id="storeChips" role="group" aria-label="Tiendas"></div></details>
@@ -359,13 +409,15 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
             <option value="down30">Mayor baja en 30 días</option>
           </select></label>
       </div>
-      <p class="hint" id="count" style="margin-top:10px"></p>
-      <ul class="list" id="results"></ul>
+    </div>
+    <div class="panel resultados">
+      <p class="hint" id="count"></p>
+      <ul class="list cards" id="results"></ul>
       <button class="more" id="moreBtn" hidden>Mostrar más</button>
     </div>
   </section>
 
-  <section id="view-comparar" hidden>
+  <section id="view-comparar" class="vista" hidden>
     <div class="panel" id="panelCanasta">
       <h2>Mi canasta</h2>
       <p class="hint">Agrega productos uno a uno y mira cuánto cuesta la canasta en cada supermercado.</p>
@@ -407,7 +459,7 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
       <ul class="list" id="vsList"></ul>
       <button class="more" id="vsMore" hidden>Mostrar más</button>
     </div>
-    <div class="panel">
+    <div class="panel full">
       <h2>Productos comparados</h2>
       <p class="hint" id="gCount"></p>
       <ul class="list" id="gList"></ul>
@@ -416,11 +468,11 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
     </div>
   </section>
 
-  <section id="view-seguidos" hidden>
-    <div class="panel">
+  <section id="view-seguidos" class="vista" hidden>
+    <div class="panel full">
       <h2>Productos que sigues</h2>
       <p class="hint">Toca la estrella en un producto para verlo aquí. Se guardan solo en este dispositivo.</p>
-      <ul class="list" id="favs"></ul>
+      <ul class="list cards" id="favs"></ul>
     </div>
   </section>
 
@@ -1445,6 +1497,7 @@ let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() 
   $('cA').innerHTML = opcTiendas; $('cB').innerHTML = opcTiendas;
   $('cA').value = store.get('cmpA', 'alvi'); $('cB').value = store.get('cmpB', 'jumbo');
   grupos(); // mismo producto entre tiendas: lo usan las listas ("en N tiendas · desde…") y la pestaña Comparar
+  if (matchMedia('(min-width: 1024px)').matches) $('storeSel').open = true;
   renderStoreChips(); renderMovers(); renderStores();
   ver(store.get('vista', 'tendencia'));
 })();
