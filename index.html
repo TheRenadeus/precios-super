@@ -113,6 +113,9 @@ select.txt{appearance:auto}
 .chg.up{color:var(--up);background:color-mix(in srgb,var(--up) 12%,transparent)}
 .chg.down{color:var(--down);background:color-mix(in srgb,var(--down) 13%,transparent)}
 .chg.flat{color:var(--muted);background:var(--soft)}
+.also{font-size:.8rem;color:var(--muted);margin-top:3px}
+.also b{color:var(--ink)}
+.also.win{color:var(--accent);font-weight:700}
 .best{display:inline-flex;align-items:center;gap:4px;margin-top:5px;font-size:.76rem;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:2px 9px}
 .more{display:block;width:100%;margin-top:12px;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px;font-weight:600;cursor:pointer}
 
@@ -227,6 +230,25 @@ dialog::backdrop{background:rgba(20,25,15,.5)}
 .dlg-head img,.dlg-head .ph{width:88px;height:88px;border-radius:16px}
 .dlg-head h3{margin:0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.2rem;line-height:1.2;letter-spacing:-.01em}
 .x{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--bg);cursor:pointer;font-size:1.1rem}
+/* Precio en cada supermercado (arriba en la ficha) */
+.tlist{list-style:none;margin:8px 0 0;padding:0;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.tlist li + li{border-top:1px solid var(--line)}
+.trow{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:12px 1fr auto 62px;gap:10px;align-items:center;padding:10px 12px;min-height:56px}
+button.trow{cursor:pointer}
+button.trow:hover,button.trow:focus-visible{background:var(--soft)}
+.tlist li.win{background:color-mix(in srgb,var(--tag) 28%,var(--surface))}
+/* En oscuro, más tenue: así el texto gris chico mantiene 4.5:1 */
+:root[data-theme="dark"] .tlist li.win,:root[data-theme="dark"] .grp-body tr.win td{background:color-mix(in srgb,var(--tag) 15%,var(--surface))}
+.tlist li.este .trow{box-shadow:inset 4px 0 0 var(--accent)}
+.tname{display:flex;flex-direction:column;min-width:0}
+.tname small{font-size:.76rem}
+.tname .este{color:var(--accent);font-weight:700}
+.tname .win-lbl{color:var(--ink);font-weight:700}
+.tprice{display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
+.tprice b{font-size:1.08rem;font-weight:700}
+.tprice .strike{font-size:.76rem}
+.tdif{text-align:right}
+.tiendas-vacio{margin-top:14px;padding:12px;border:1px dashed var(--line);border-radius:14px}
 .pricebox{margin-top:16px;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:14px}
 .big{font-size:2.1rem;font-weight:700;line-height:1.1}
 .big.tag{padding:2px 14px 2px 28px;border-radius:10px 8px 8px 10px}
@@ -666,9 +688,14 @@ function itemHtml(p, extra, below = '') {
   const chg = ch == null ? '' : `<span class="chg ${ch > 0.05 ? 'up' : ch < -0.05 ? 'down' : 'flat'}">${pct(ch)}</span>`;
   const img = p.i ? `<img src="${esc(p.i)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-ph="${p.store}">` : ph(p.store);
   const u = p.unit ? `<div class="unit">${fmt(p.unit.v)}/${p.unit.u}</div>` : '';
+  // En cuántas tiendas está el mismo producto hoy y desde cuánto (se ve sin abrir la ficha).
+  const g = GRUPOS && GRUPO_DE.get(p.key);
+  const otras = g && g.miembros.length > 1 ? (gana(p, g)
+    ? `<div class="also win">✓ El más barato de ${g.miembros.length} tiendas</div>`
+    : `<div class="also">En ${g.miembros.length} tiendas · desde <b class="num">${precioUno(g.miembros[0])}</b> en ${NOMBRES[g.miembros[0].store]}</div>`) : '';
   return `<li class="item" tabindex="0" data-k="${esc(p.key)}">${img}
     <div><div class="name">${esc(p.n)}</div>
-      <div class="meta"><i class="dot" style="background:${color(p.store)}"></i><span>${NOMBRES[p.store]}${p.m ? ' · ' + esc(p.m) : ''}${p.fresh ? '' : ` · <span class="bad">no visto desde ${fDia(p.v)}</span>`}${p.out ? ' · agotado' : ''}</span></div>${below}</div>
+      <div class="meta"><i class="dot" style="background:${color(p.store)}"></i><span>${NOMBRES[p.store]}${p.m ? ' · ' + esc(p.m) : ''}${p.fresh ? '' : ` · <span class="bad">no visto desde ${fDia(p.v)}</span>`}${p.out ? ' · agotado' : ''}</span></div>${otras}${below}</div>
     <div class="price"><b class="num${p.normal ? ' tag' : ''}"${p.normal ? ' title="Precio de oferta"' : ''}>${fmt(p.price)}</b>${p.normal ? `<div class="strike num"><span class="sr">Antes </span>${fmt(p.normal)}</div>` : ''}${u}${chg}</div></li>`;
 }
 
@@ -1084,6 +1111,27 @@ function filaPar(x, A, B) {
 }
 
 // ---------- Detalle ----------
+// Precio del mismo producto en cada supermercado (incluida la tienda que se está viendo), de menor a mayor.
+// Va arriba en la ficha: es lo primero que se quiere ver al tocar un producto.
+function tablaPrecios(p, eq, esMasBarato) {
+  if (!eq.length) return `<div class="tiendas-vacio hint">Por ahora este producto solo aparece en <b>${NOMBRES[p.store]}</b>: no se encontró el mismo en otros supermercados.</div>`;
+  const filas = [{ q: p, este: true }, ...eq.map(e => ({ q: e.q, exact: e.exact }))].sort((a, b) => porUno(a.q) - porUno(b.q));
+  const base = porUno(p);
+  const caro = porUno(filas.at(-1).q), barato = porUno(filas[0].q);
+  const paquetes = filas.some(f => esPaquete(f.q));
+  return `<section class="tiendas" aria-labelledby="tTit">
+    <h4 class="sec" id="tTit" style="margin-top:14px">Precio en ${filas.length} supermercados</h4>
+    <ul class="tlist">${filas.map(({ q, este }) => {
+      const d = (porUno(q) / base - 1) * 100;
+      const fila = `<i class="dot" style="background:${color(q.store)}"></i>
+        <span class="tname"><b>${NOMBRES[q.store]}</b>${este ? '<small class="este">estás viendo</small>' : ''}${esMasBarato(q) ? '<small class="win-lbl">más barato</small>' : ''}${!q.fresh ? `<small class="bad">precio del ${fDia(q.v)}</small>` : ''}${esPaquete(q) ? `<small class="hint">${(q.n.match(/[a-z]+x\d+$/i) || ['pack de ' + q.k])[0]}: ${fmt(q.price)}</small>` : ''}</span>
+        <span class="tprice"><b class="num${q.normal ? ' tag' : ''}">${precioUno(q)}</b>${q.normal ? `<s class="strike num">${fmt(q.normal)}</s>` : ''}${q.unit ? `<small class="unit num">${fmt(q.unit.v)}/${q.unit.u}</small>` : ''}</span>
+        <span class="tdif">${este ? '' : `<span class="chg ${d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat'}">${pct(d)}</span>`}</span>`;
+      return `<li class="${esMasBarato(q) ? 'win' : ''}${este ? ' este' : ''}">${este ? `<div class="trow">${fila}</div>` : `<button class="trow" data-k="${esc(q.key)}" aria-label="Ver ${esc(q.n)} en ${NOMBRES[q.store]}">${fila}</button>`}</li>`;
+    }).join('')}</ul>
+    <p class="hint" style="margin-top:6px">${caro > barato * 1.005 ? `Entre el más barato y el más caro hay <b class="num">${fmt(caro - barato)}</b> de diferencia. ` : ''}El porcentaje compara con ${NOMBRES[p.store]}${paquetes ? '; en cajas y packs (*) es el precio de una unidad' : ''}.${eq.some(e => !e.exact) ? ' Coincidencias por marca, nombre y tamaño: revisa que sea el mismo producto.' : ''}</p>
+  </section>`;
+}
 function abrir(key) {
   const p = BYKEY.get(key); if (!p) return;
   const dates = DATES.filter(d => d >= p.h[0][0] && d <= p.v);
@@ -1101,13 +1149,13 @@ function abrir(key) {
       <div><h3 id="dName">${esc(p.n)}</h3>
         <div class="meta" style="color:var(--muted);font-size:.88rem;display:flex;gap:6px;align-items:center;margin-top:4px"><i class="dot" style="background:${color(p.store)}"></i>${NOMBRES[p.store]}${p.m ? ' · ' + esc(p.m) : ''}</div></div>
       <button class="x" id="dClose" aria-label="Cerrar">✕</button></div>
+    ${tablaPrecios(p, eq, esMasBarato)}
     <div class="pricebox">
     <div class="row">
       <span class="big num${p.normal ? ' tag' : ''}">${fmt(p.price)}</span>
       ${p.normal ? `<span class="strike num" style="font-size:.95rem"><span class="sr">Antes </span>${fmt(p.normal)}</span>` : ''}
       ${ch != null ? `<span class="chg ${ch > 0.05 ? 'up' : ch < -0.05 ? 'down' : 'flat'}">${pct(ch)} en 30 días</span>` : ''}
     </div>
-    ${esMasBarato(p) ? `<span class="best">✓ El más barato de ${eq.length + 1} tiendas</span>` : ''}
     <div class="facts">
       ${p.unit ? `<span><b class="num">${fmt(p.unit.v)}</b> por ${p.unit.u === 'c/u' ? 'unidad' : p.unit.u}</span>` : ''}
       ${p.card ? `<span>Tarjeta CMR <b class="num">${fmt(p.card)}</b></span>` : ''}
@@ -1122,10 +1170,6 @@ function abrir(key) {
       <div class="stat"><small>Máximo</small><b class="num">${fmt(hi)}</b></div>
       <div class="stat"><small>Registrado desde</small><b class="num">${fDia(p.h[0][0])}</b></div>
     </div>
-    <h4 class="sec">En otros supermercados</h4>
-    ${eq.length ? `<ul class="list">${eq.map(e => itemHtml(e.q, ((porUno(e.q) / porUno(p)) - 1) * 100, esMasBarato(e.q) ? '<span class="best">✓ Más barato</span>' : '')).join('')}</ul>
-      <p class="hint">${eq.some(e => !e.exact) ? 'Coincidencias por marca, nombre y tamaño: revisa que sea el mismo producto. ' : ''}El porcentaje compara con el precio de ${NOMBRES[p.store]}${esPaquete(p) || eq.some(e => esPaquete(e.q)) ? ', por unidad: en las cajas y packs se divide el precio por la cantidad que traen' : ''}.</p>`
-      : '<p class="hint">No se encontró el mismo producto en las otras tiendas.</p>'}
     <details class="tbl"><summary>Historial como tabla</summary>
       <table><thead><tr><th>Desde</th><th>Precio</th><th>Normal</th></tr></thead><tbody>
       ${p.h.slice().reverse().map(r => `<tr><td>${fDiaA(r[0])}</td><td class="num">${fmt(r[1])}</td><td class="num">${r[2] ? fmt(r[2]) : '—'}</td></tr>`).join('')}
@@ -1266,6 +1310,7 @@ let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() 
   const opcTiendas = TIENDAS.map(s => `<option value="${s}">${NOMBRES[s]}</option>`).join('');
   $('cA').innerHTML = opcTiendas; $('cB').innerHTML = opcTiendas;
   $('cA').value = store.get('cmpA', 'alvi'); $('cB').value = store.get('cmpB', 'jumbo');
+  grupos(); // mismo producto entre tiendas: lo usan las listas ("en N tiendas · desde…") y la pestaña Comparar
   renderStoreChips(); renderMovers(); renderStores();
   ver(store.get('vista', 'tendencia'));
 })();
