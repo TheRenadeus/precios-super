@@ -9,6 +9,8 @@
 // Cada archivo guarda también 'estado': cómo salió la última lectura de esa tienda. Así, cada tienda
 // toca solo su propio archivo y se puede leer desde lugares distintos (GitHub o tu computador) sin choques.
 //
+// Hay dos rubros: supermercados (busca los términos de canasta.json) y ferreterías (ferreteria.json).
+//
 // Uso: node scripts/update-prices.mjs [tienda ...]   (sin argumentos, todas)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
@@ -67,10 +69,10 @@ function leerJsonLd(html) {
 
 const numCLP = s => Number(String(Array.isArray(s) ? s[0] : s).replace(/[^\d]/g, '')) || null;
 
-// Tottus (Falabella) es una app Next.js: los resultados vienen en __NEXT_DATA__.
-function leerTottus(html) {
+// Tottus y Sodimac (Falabella) son apps Next.js: los resultados vienen en __NEXT_DATA__, con la misma forma.
+function leerTottus(html, nombre = 'Tottus') {
   const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-  if (!m) throw new Error('Tottus: la página no trae __NEXT_DATA__ (¿cambió el sitio?)');
+  if (!m) throw new Error(`${nombre}: la página no trae __NEXT_DATA__ (¿cambió el sitio?)`);
   const pp = JSON.parse(m[1]).props?.pageProps || {};
   const out = [];
   for (const x of pp.results || []) {
@@ -91,6 +93,34 @@ function leerTottus(html) {
       normal: normal && normal > precio ? normal : null,
       tarjeta: tarjeta && tarjeta < precio ? tarjeta : null,
       disponible: true,
+    });
+  }
+  return out;
+}
+
+// Easy (Cencosud) es una app Next.js: la búsqueda viene en __NEXT_DATA__ (serverProductsResponse.productList).
+// Precio normal, oferta y precio con tarjeta Cencosud (brandPrice).
+function leerEasy(html) {
+  const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) throw new Error('Easy: la página no trae __NEXT_DATA__ (¿cambió el sitio?)');
+  const lista = JSON.parse(m[1]).props?.pageProps?.serverProductsResponse?.productList || [];
+  const out = [];
+  for (const x of lista) {
+    if (x.sponsoredProductData || x.isMarketplace) continue; // patrocinados y vendedores externos fuera
+    const pr = x.prices || {};
+    const normal = Number(pr.normalPrice) || null, oferta = Number(pr.offerPrice) || null, tarjeta = Number(pr.brandPrice) || null;
+    const precio = oferta && normal && oferta < normal ? oferta : normal || oferta;
+    if (!precio || !x.productId || !x.linkText) continue;
+    out.push({
+      id: String(x.productId),
+      n: String(x.productName || '').trim(),
+      m: String(x.brand || '').trim(),
+      u: 'https://www.easy.cl/' + String(x.linkText).replace(/^\//, ''),
+      i: fotoVtex(x.imageUrl),
+      precio,
+      normal: normal && normal > precio ? normal : null,
+      tarjeta: tarjeta && tarjeta < precio ? tarjeta : null,
+      disponible: x.availableQuantity == null || x.availableQuantity > 0,
     });
   }
   return out;
@@ -254,6 +284,22 @@ const TIENDAS = {
     url: (q, p) => `https://www.alvi.cl/search?q=${encodeURIComponent(q)}${p > 1 ? `&page=${p}` : ''}`,
     leer: leerAlvi,
   },
+  // ---------- Ferreterías ----------
+  easy: {
+    nombre: 'Easy',
+    rubro: 'ferreteria',
+    url: (q, p) => `https://www.easy.cl/search/${encodeURIComponent(q)}${p > 1 ? `?page=${p}` : ''}`,
+    leer: leerEasy,
+  },
+  // Sodimac prohíbe leer su búsqueda en robots.txt, pero no sus páginas de categoría: se lee por categoría
+  // (campo 'sodimac' de ferreteria.json).
+  sodimac: {
+    nombre: 'Sodimac',
+    rubro: 'ferreteria',
+    campo: 'sodimac',
+    url: (cat, p) => `https://www.sodimac.cl/sodimac-cl/lista/${cat}${p > 1 ? `?page=${p}` : ''}`,
+    leer: html => leerTottus(html, 'Sodimac'),
+  },
   centralmayorista: {
     nombre: 'Central Mayorista',
     buscar: instaleap({ nombre: 'Central Mayorista', clientId: 'CENTRAL_MAYORISTA', local: '159', sitio: 'https://www.centralmayorista.cl' }), // local Macul
@@ -274,10 +320,14 @@ async function actualizarTienda(clave, canasta) {
   const vistos = new Map();
   let paginasOk = 0, paginasError = 0, ultimoError = '';
 
-  for (const termino of canasta.terminos) {
+  for (const entrada of canasta.terminos) {
+    // Un término es texto ("arroz") o, en ferreterías, { termino, sodimac }: la tienda con 'campo' usa ese dato.
+    const termino = typeof entrada === 'string' ? entrada : entrada.termino;
+    const q = t.campo ? entrada[t.campo] : termino;
+    if (!q) continue;
     for (let p = 1; p <= (canasta.paginas || 1); p++) {
       try {
-        const items = t.buscar ? await t.buscar(termino, p) : t.leer(await getHtml(t.url(termino, p)));
+        const items = t.buscar ? await t.buscar(q, p) : t.leer(await getHtml(t.url(q, p)));
         paginasOk++;
         for (const it of items) {
           const prev = vistos.get(it.id);
@@ -335,7 +385,7 @@ function guardar(file, db, t, r) {
   return r;
 }
 
-const canasta = JSON.parse(readFileSync('canasta.json', 'utf8'));
+const CANASTAS = { super: JSON.parse(readFileSync('canasta.json', 'utf8')), ferreteria: JSON.parse(readFileSync('ferreteria.json', 'utf8')) };
 const pedidas = process.argv.slice(2);
 const claves = pedidas.length ? pedidas : Object.keys(TIENDAS);
 mkdirSync(DIR, { recursive: true });
@@ -343,6 +393,7 @@ mkdirSync(DIR, { recursive: true });
 // Las tiendas se consultan en paralelo; dentro de cada una, las páginas van de a una.
 const resultados = await Promise.all(claves.map(async clave => {
   if (!TIENDAS[clave]) { console.error(`Tienda desconocida: ${clave}. Opciones: ${Object.keys(TIENDAS).join(', ')}`); return false; }
+  const canasta = CANASTAS[TIENDAS[clave].rubro || 'super'];
   console.log(`${TIENDAS[clave].nombre}: buscando ${canasta.terminos.length} términos…`);
   let r;
   try { r = await actualizarTienda(clave, canasta); } catch (e) { r = { ok: false, productos: 0, error: e.message }; }

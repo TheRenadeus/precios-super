@@ -4,7 +4,12 @@ on:
   schedule:
     # Todos los días, cerca de las 8:15 hora de Chile (UTC-3).
     - cron: '13 11 * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tiendas:
+        description: "Tiendas a leer, separadas por espacio (vacío = todas las de la tarea diaria)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -24,9 +29,12 @@ jobs:
         with:
           node-version: 22
 
-      # Tottus bloquea a los servidores de GitHub: se lee desde un computador con scripts/precios-local.mjs.
-      - name: Leer precios de los supermercados
-        run: node scripts/update-prices.mjs jumbo santaisabel unimarc acuenta alvi centralmayorista
+      # Tottus bloquea a los programas que se identifican como robot: queda fuera (ver README).
+      # El nombre de las tiendas viene por variable de entorno, nunca pegado en el comando.
+      - name: Leer precios de supermercados y ferreterías
+        env:
+          TIENDAS: ${{ inputs.tiendas }}
+        run: node scripts/update-prices.mjs ${TIENDAS:-jumbo santaisabel unimarc acuenta alvi centralmayorista easy sodimac}
 
       - name: Subir cambios
         run: |
