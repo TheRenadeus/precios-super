@@ -94,6 +94,52 @@ function leerTottus(html) {
   return out;
 }
 
+// aCuenta (Walmart) usa la plataforma Instaleap: la página de búsqueda no trae productos en el HTML,
+// los pide a esta API con la misma consulta que hace el navegador de cualquier visitante (sin cuenta).
+// Los precios son los de un local de referencia: el que el sitio muestra por defecto.
+const ACUENTA_API = 'https://nextgentheadless.instaleap.io/api/v3';
+const ACUENTA_LOCAL = '580'; // aCuenta El Monte
+const ACUENTA_QUERY = `query Buscar($i: SearchProductsInput!) {
+  searchProducts(searchProductsInput: $i) {
+    products { name price previousPrice sku slug brand photosUrl isAvailable }
+  }
+}`;
+// Las fotos vienen a 2000 px (~260 KB). El servicio de imágenes entrega una versión de 300 px en WebP (~5-10 KB).
+const fotoAcuenta = u => !u ? '' : /&sink$/.test(u) ? u.replace(/&sink$/, '&scale=size[300x300]&sink=format[webp],quality[75]') : u;
+async function buscarAcuenta(q, p) {
+  const r = await fetch(ACUENTA_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': UA, 'Origin': 'https://www.acuenta.cl', 'Referer': 'https://www.acuenta.cl/' },
+    body: JSON.stringify({
+      operationName: 'Buscar',
+      query: ACUENTA_QUERY,
+      variables: { i: { clientId: 'SUPER_BODEGA', storeReference: ACUENTA_LOCAL, search: [{ query: q }], pageSize: 40, currentPage: p } },
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!r.ok) throw new Error(`aCuenta respondió ${r.status}`);
+  const j = await r.json();
+  if (j.errors?.length) throw new Error(`aCuenta: ${j.errors[0].message}`);
+  const out = [];
+  for (const x of j.data?.searchProducts?.products || []) {
+    const precio = Number(x.price);
+    if (!precio || !x.sku || !x.slug) continue;
+    const normal = Number(x.previousPrice) || null;
+    out.push({
+      id: String(x.sku),
+      n: String(x.name || '').trim(),
+      m: String(x.brand || '').trim(),
+      u: `https://www.acuenta.cl/p/${x.slug}`,
+      i: fotoAcuenta(x.photosUrl && x.photosUrl[0]),
+      precio,
+      normal: normal && normal > precio ? normal : null,
+      tarjeta: null,
+      disponible: x.isAvailable !== false,
+    });
+  }
+  return out;
+}
+
 const TIENDAS = {
   jumbo: {
     nombre: 'Jumbo',
@@ -109,6 +155,10 @@ const TIENDAS = {
     nombre: 'Tottus',
     url: (q, p) => `https://www.tottus.cl/tottus-cl/buscar?Ntt=${encodeURIComponent(q)}${p > 1 ? `&page=${p}` : ''}`,
     leer: leerTottus,
+  },
+  acuenta: {
+    nombre: 'aCuenta',
+    buscar: buscarAcuenta, // en vez de url + leer: consulta la API y devuelve los productos
   },
 };
 
@@ -129,7 +179,7 @@ async function actualizarTienda(clave, canasta) {
   for (const termino of canasta.terminos) {
     for (let p = 1; p <= (canasta.paginas || 1); p++) {
       try {
-        const items = t.leer(await getHtml(t.url(termino, p)));
+        const items = t.buscar ? await t.buscar(termino, p) : t.leer(await getHtml(t.url(termino, p)));
         paginasOk++;
         for (const it of items) {
           const prev = vistos.get(it.id);

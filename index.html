@@ -19,7 +19,7 @@
   --bg:#EDF1EF;--surface:#FFFFFF;--ink:#1D2B36;--muted:#5E6B74;--line:#D5DDD9;--soft:#E2E8E5;
   --accent:#3D5A80;--on-accent:#FFFFFF;--up:#B23A48;--down:#2A7353;--warn:#B7791F;
   --grid:#E4EAE7;
-  --s-jumbo:#257de0;--s-santaisabel:#cf5a1c;--s-tottus:#009a7b;
+  --s-jumbo:#257de0;--s-santaisabel:#cf5a1c;--s-tottus:#009a7b;--s-acuenta:#a8329a;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -27,7 +27,7 @@
     --bg:#121A1F;--surface:#1B252C;--ink:#E6ECEF;--muted:#9AA8B1;--line:#2C3942;--soft:#243039;
     --accent:#8FB0D8;--on-accent:#121A1F;--up:#E0707D;--down:#5BBE8F;--warn:#E0A94A;
     --grid:#26323A;
-    --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;
+    --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;
   }
 }
 :root[data-theme="dark"]{
@@ -35,7 +35,7 @@
   --bg:#121A1F;--surface:#1B252C;--ink:#E6ECEF;--muted:#9AA8B1;--line:#2C3942;--soft:#243039;
   --accent:#8FB0D8;--on-accent:#121A1F;--up:#E0707D;--down:#5BBE8F;--warn:#E0A94A;
   --grid:#26323A;
-  --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;
+  --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -215,8 +215,8 @@ h4.sec{margin:18px 0 0;font-size:1rem}
 
 <script>
 const DATA = 'data/';
-const TIENDAS = ['jumbo', 'santaisabel', 'tottus'];
-const NOMBRES = { jumbo: 'Jumbo', santaisabel: 'Santa Isabel', tottus: 'Tottus' };
+const TIENDAS = ['jumbo', 'santaisabel', 'tottus', 'acuenta'];
+const NOMBRES = { jumbo: 'Jumbo', santaisabel: 'Santa Isabel', tottus: 'Tottus', acuenta: 'aCuenta' };
 const color = s => `var(--s-${s})`;
 
 const $ = id => document.getElementById(id);
@@ -505,7 +505,7 @@ function renderStores() {
       : e.ok === false || atrasada ? `<span class="bad">Sin lectura nueva</span> · precios del ${fDia(e.fecha)}`
       : `${n.toLocaleString('es-CL')} productos · ${fDia(e.fecha)}`;
     return `<div class="store"><span class="row"><i class="dot" style="background:${color(s)}"></i>${NOMBRES[s]}</span><span class="st">${st}</span></div>`;
-  }).join('') + `<p class="hint" style="margin-top:10px">No incluidos: Líder, Unimarc, aCuenta, Alvi y Mayorista 10. Sus sitios bloquean la lectura automática.</p>`;
+  }).join('') + `<p class="hint" style="margin-top:10px">aCuenta: precios del local El Monte. No incluidos: Líder, Unimarc, Alvi y Mayorista 10. Sus sitios bloquean la lectura automática.</p>`;
   const atrasadas = TIENDAS.filter(s => ESTADO[s] && ESTADO[s].fecha && (ESTADO[s].ok === false || ESTADO[s].fecha < HOY));
   $('banner').innerHTML = atrasadas.length ? `<div class="banner">${atrasadas.map(s => `<b>${NOMBRES[s]}</b> muestra precios del ${fDia(ESTADO[s].fecha)}`).join(' · ')}. No hubo lectura nueva hoy.</div>` : '';
 }
@@ -549,6 +549,7 @@ function renderFavs() {
 }
 
 // ---------- Equivalentes en otras tiendas ----------
+const CATALOGO_COMUN = new Set(['jumbo', 'santaisabel']); // comparten identificadores de producto
 function equivalentes(p) {
   const tok = s => new Set(norm(s).split(' ').filter(w => w.length > 1 && !/^\d/.test(w)));
   const a = tok(p.n), ma = norm(p.m);
@@ -557,7 +558,7 @@ function equivalentes(p) {
     if (s === p.store) continue;
     // Jumbo y Santa Isabel comparten catálogo: mismo identificador = mismo producto.
     const exacto = BYKEY.get(s + ':' + p.id);
-    if (exacto && p.store !== 'tottus' && s !== 'tottus') { out.push({ q: exacto, exact: true }); continue; }
+    if (exacto && CATALOGO_COMUN.has(p.store) && CATALOGO_COMUN.has(s)) { out.push({ q: exacto, exact: true }); continue; }
     let best = null, bs = 0;
     for (const q of ALL) {
       if (q.store !== s || !p.size || !q.size || q.size.base !== p.size.base || Math.abs(q.size.qty - p.size.qty) > 0.01 * p.size.qty) continue;

@@ -9,8 +9,12 @@ Funciona como app web instalable (PWA) desde GitHub Pages.
   Cada producto muestra su gráfico de precio y el mismo producto en los otros supermercados.
 - **Seguidos:** los productos que marcas con la estrella (se guardan solo en tu teléfono).
 
-Supermercados: **Jumbo, Santa Isabel y Tottus**. Líder, Unimarc, aCuenta, Alvi y Mayorista 10 bloquean
+Supermercados: **Jumbo, Santa Isabel, Tottus y aCuenta**. Líder, Unimarc, Alvi y Mayorista 10 bloquean
 la lectura automática de sus páginas desde servidores en la nube.
+
+aCuenta no trae los productos en el HTML de su búsqueda: se leen de la API de su plataforma (Instaleap), con la
+misma consulta que hace el navegador de cualquier visitante. Los precios son los del local El Monte, el que el
+sitio muestra por defecto (`ACUENTA_LOCAL` en `scripts/update-prices.mjs`).
 
 ## 1. Publicar
 
