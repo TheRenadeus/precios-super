@@ -1,5 +1,5 @@
 // Cambia este número cada vez que publiques cambios en la página, para que el teléfono tome la versión nueva.
-const CACHE = 'precios-v3';
+const CACHE = 'precios-v4';
 const APP = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png'];
 
 self.addEventListener('install', e => {

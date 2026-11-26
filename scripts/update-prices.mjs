@@ -13,7 +13,9 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const DIR = 'data';
-const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+// El script se identifica como lo que es (no como un navegador). Algunas tiendas, como Alvi, rechazan a los
+// programas que se hacen pasar por navegador, pero dejan leer a un agente que se identifica.
+const UA = 'precios-super-bot/1.0 (lectura diaria de precios publicos, 1 consulta cada 1.5 s)';
 const PAUSA_MS = 1500; // espera entre páginas de una misma tienda, para no cargar sus servidores
 const OLVIDAR_DIAS = 120; // productos que no aparecen hace más de esto se borran
 
@@ -94,6 +96,43 @@ function leerTottus(html) {
   return out;
 }
 
+// Alvi (SMU) es una app Next.js: los resultados vienen en __NEXT_DATA__ (intelliSearchData).
+// Vende por unidad con precios por cantidad (priceSteps): se guardan en 'e' como [[desde, precio], ...].
+function leerAlvi(html) {
+  const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) throw new Error('Alvi: la página no trae __NEXT_DATA__ (¿cambió el sitio?)');
+  const d = JSON.parse(m[1]).props?.pageProps?.intelliSearchData || {};
+  const out = [];
+  for (const [lista, disponible] of [[d.availableProducts, true], [d.notAvailableProducts, false]]) {
+    for (const x of lista || []) {
+      const s = (x.sellers || [])[0] || {};
+      const precio = Number(s.price);
+      if (!precio || !x.productId || !x.detailUrl) continue;
+      const normal = Number(s.listPrice) || null;
+      const escalas = (x.priceSteps || [])
+        .map(e => [Number(e.minQuantity), Number(e.promotionalPrice)])
+        .filter(([q, p]) => q > 1 && p > 0 && p < precio)
+        .sort((a, b) => a[0] - b[0]);
+      // Fotos de VTEX: '/ids/<n>/' → '/ids/<n>-300-300/' entrega 300 px (~25 KB) en vez del original.
+      const foto = String((x.images || [])[0] || '').replace(/\/ids\/(\d+)\//, '/ids/$1-300-300/');
+      out.push({
+        id: String(x.productId),
+        // 'name' es el nombre limpio ('nameComplete' a veces repite texto); si no trae el tamaño, se suma 'format'.
+        n: (/\d/.test(x.name || '') || !x.format ? String(x.name || '') : `${x.name} ${x.format}`).trim(),
+        m: String(x.brand || '').trim(),
+        u: 'https://www.alvi.cl' + x.detailUrl,
+        i: foto,
+        precio,
+        normal: normal && normal > precio ? normal : null,
+        tarjeta: null,
+        disponible,
+        e: escalas.length ? escalas : undefined,
+      });
+    }
+  }
+  return out;
+}
+
 // aCuenta y Central Mayorista (Walmart) usan la plataforma Instaleap: la página de búsqueda no trae los
 // productos en el HTML, los pide a esta API con la misma consulta que hace el navegador de cualquier visitante
 // (sin cuenta). Los precios son los de un local de referencia: el que cada sitio muestra por defecto.
@@ -169,6 +208,11 @@ const TIENDAS = {
     nombre: 'aCuenta',
     buscar: instaleap({ nombre: 'aCuenta', clientId: 'SUPER_BODEGA', local: '580', sitio: 'https://www.acuenta.cl' }), // local El Monte
   },
+  alvi: {
+    nombre: 'Alvi',
+    url: (q, p) => `https://www.alvi.cl/search?q=${encodeURIComponent(q)}${p > 1 ? `&page=${p}` : ''}`,
+    leer: leerAlvi,
+  },
   centralmayorista: {
     nombre: 'Central Mayorista',
     buscar: instaleap({ nombre: 'Central Mayorista', clientId: 'CENTRAL_MAYORISTA', local: '159', sitio: 'https://www.centralmayorista.cl' }), // local Macul
@@ -221,6 +265,7 @@ async function actualizarTienda(clave, canasta) {
     p.t = it.t;
     if (!it.disponible) p.x = 1; else delete p.x;
     if (it.k > 1) p.k = it.k; else delete p.k; // unidades por paquete (mayoristas)
+    if (it.e) p.e = it.e; else delete p.e; // precios por cantidad de hoy: [[desde, precio], ...] (mayoristas)
     // Si hoy ya hubo una ejecución, se reemplaza la fila de hoy.
     if (p.h.length && p.h[p.h.length - 1][0] === hoy) p.h.pop();
     const ult = p.h[p.h.length - 1];

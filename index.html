@@ -19,7 +19,7 @@
   --bg:#EDF1EF;--surface:#FFFFFF;--ink:#1D2B36;--muted:#5E6B74;--line:#D5DDD9;--soft:#E2E8E5;
   --accent:#3D5A80;--on-accent:#FFFFFF;--up:#B23A48;--down:#2A7353;--warn:#B7791F;
   --grid:#E4EAE7;
-  --s-jumbo:#257de0;--s-santaisabel:#cf5a1c;--s-tottus:#009a7b;--s-acuenta:#a8329a;--s-centralmayorista:#5c4a2e;
+  --s-jumbo:#257de0;--s-santaisabel:#cf5a1c;--s-tottus:#009a7b;--s-acuenta:#a8329a;--s-centralmayorista:#5c4a2e;--s-alvi:#6d28d9;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -27,7 +27,7 @@
     --bg:#121A1F;--surface:#1B252C;--ink:#E6ECEF;--muted:#9AA8B1;--line:#2C3942;--soft:#243039;
     --accent:#8FB0D8;--on-accent:#121A1F;--up:#E0707D;--down:#5BBE8F;--warn:#E0A94A;
     --grid:#26323A;
-    --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;--s-centralmayorista:#e6d8b0;
+    --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;--s-centralmayorista:#e6d8b0;--s-alvi:#b69cff;
   }
 }
 :root[data-theme="dark"]{
@@ -35,7 +35,7 @@
   --bg:#121A1F;--surface:#1B252C;--ink:#E6ECEF;--muted:#9AA8B1;--line:#2C3942;--soft:#243039;
   --accent:#8FB0D8;--on-accent:#121A1F;--up:#E0707D;--down:#5BBE8F;--warn:#E0A94A;
   --grid:#26323A;
-  --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;--s-centralmayorista:#e6d8b0;
+  --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;--s-centralmayorista:#e6d8b0;--s-alvi:#b69cff;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -215,8 +215,8 @@ h4.sec{margin:18px 0 0;font-size:1rem}
 
 <script>
 const DATA = 'data/';
-const TIENDAS = ['jumbo', 'santaisabel', 'tottus', 'acuenta', 'centralmayorista'];
-const NOMBRES = { jumbo: 'Jumbo', santaisabel: 'Santa Isabel', tottus: 'Tottus', acuenta: 'aCuenta', centralmayorista: 'Central Mayorista' };
+const TIENDAS = ['jumbo', 'santaisabel', 'tottus', 'acuenta', 'alvi', 'centralmayorista'];
+const NOMBRES = { jumbo: 'Jumbo', santaisabel: 'Santa Isabel', tottus: 'Tottus', acuenta: 'aCuenta', alvi: 'Alvi', centralmayorista: 'Central Mayorista' };
 const color = s => `var(--s-${s})`;
 
 const $ = id => document.getElementById(id);
@@ -298,7 +298,7 @@ async function cargar() {
       if (!p.h || !p.h.length) continue;
       const last = p.h[p.h.length - 1];
       const o = { key: s + ':' + id, store: s, id, n: p.n, m: p.m, u: p.u, i: p.i, t: p.t || [], v: p.v, h: p.h, out: !!p.x,
-        price: last[1], normal: last[2], card: last[3], fresh: p.v === db.fecha, k: p.k || 1 };
+        price: last[1], normal: last[2], card: last[3], fresh: p.v === db.fecha, k: p.k || 1, steps: p.e || null };
       o.size = tamanoPaquete(o.n, o.k);
       o.unit = unitPrice(o);
       o.search = norm(o.n + ' ' + o.m);
@@ -515,7 +515,7 @@ function renderStores() {
       : e.ok === false || atrasada ? `<span class="bad">Sin lectura nueva</span> · precios del ${fDia(e.fecha)}`
       : `${n.toLocaleString('es-CL')} productos · ${fDia(e.fecha)}`;
     return `<div class="store"><span class="row"><i class="dot" style="background:${color(s)}"></i>${NOMBRES[s]}</span><span class="st">${st}</span></div>`;
-  }).join('') + `<p class="hint" style="margin-top:10px">aCuenta: precios del local El Monte. Central Mayorista: local Macul, precios para comerciantes socios, por caja o pack (el precio por unidad divide por la cantidad). No incluidos: Líder (su robots.txt prohíbe leer la búsqueda), Unimarc, Alvi y Mayorista 10 (bloquean la lectura automática).</p>`;
+  }).join('') + `<p class="hint" style="margin-top:10px">aCuenta: precios del local El Monte. Central Mayorista: local Macul, precios para comerciantes socios, por caja o pack (el precio por unidad divide por la cantidad). Alvi: precio por unidad; en la ficha, los precios por cantidad. No incluidos: Líder (su robots.txt prohíbe leer la búsqueda), Mayorista 10 (ahora Super10, sin tienda online) y Unimarc (todavía no).</p>`;
   const atrasadas = TIENDAS.filter(s => ESTADO[s] && ESTADO[s].fecha && (ESTADO[s].ok === false || ESTADO[s].fecha < HOY));
   $('banner').innerHTML = atrasadas.length ? `<div class="banner">${atrasadas.map(s => `<b>${NOMBRES[s]}</b> muestra precios del ${fDia(ESTADO[s].fecha)}`).join(' · ')}. No hubo lectura nueva hoy.</div>` : '';
 }
@@ -609,6 +609,7 @@ function abrir(key) {
     <div class="facts">
       ${p.unit ? `<span><b class="num">${fmt(p.unit.v)}</b> por ${p.unit.u === 'c/u' ? 'unidad' : p.unit.u}</span>` : ''}
       ${p.card ? `<span>Tarjeta CMR <b class="num">${fmt(p.card)}</b></span>` : ''}
+      ${p.steps ? `<span>Por cantidad: ${p.steps.map(([q, v]) => `desde ${q} un <b class="num">${fmt(v)}</b>`).join(' · ')} c/u</span>` : ''}
       <span>${p.fresh ? 'Precio del ' + fDia(p.v) : '<span class="bad">No aparece desde el ' + fDia(p.v) + '</span>'}${p.out ? ' · agotado en la web' : ''}</span>
     </div>
     <div id="dChart" class="chart"></div>

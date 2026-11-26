@@ -26,7 +26,7 @@ jobs:
 
       # Tottus bloquea a los servidores de GitHub: se lee desde un computador con scripts/precios-local.mjs.
       - name: Leer precios de los supermercados
-        run: node scripts/update-prices.mjs jumbo santaisabel acuenta centralmayorista
+        run: node scripts/update-prices.mjs jumbo santaisabel acuenta alvi centralmayorista
 
       - name: Subir cambios
         run: |
