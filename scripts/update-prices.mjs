@@ -94,50 +94,58 @@ function leerTottus(html) {
   return out;
 }
 
-// aCuenta (Walmart) usa la plataforma Instaleap: la página de búsqueda no trae productos en el HTML,
-// los pide a esta API con la misma consulta que hace el navegador de cualquier visitante (sin cuenta).
-// Los precios son los de un local de referencia: el que el sitio muestra por defecto.
-const ACUENTA_API = 'https://nextgentheadless.instaleap.io/api/v3';
-const ACUENTA_LOCAL = '580'; // aCuenta El Monte
-const ACUENTA_QUERY = `query Buscar($i: SearchProductsInput!) {
+// aCuenta y Central Mayorista (Walmart) usan la plataforma Instaleap: la página de búsqueda no trae los
+// productos en el HTML, los pide a esta API con la misma consulta que hace el navegador de cualquier visitante
+// (sin cuenta). Los precios son los de un local de referencia: el que cada sitio muestra por defecto.
+const INSTALEAP_API = 'https://nextgentheadless.instaleap.io/api/v3';
+const INSTALEAP_QUERY = `query Buscar($i: SearchProductsInput!) {
   searchProducts(searchProductsInput: $i) {
-    products { name price previousPrice sku slug brand photosUrl isAvailable }
+    products { name price previousPrice sku slug brand photosUrl isAvailable unit subUnit subQty }
   }
 }`;
 // Las fotos vienen a 2000 px (~260 KB). El servicio de imágenes entrega una versión de 300 px en WebP (~5-10 KB).
-const fotoAcuenta = u => !u ? '' : /&sink$/.test(u) ? u.replace(/&sink$/, '&scale=size[300x300]&sink=format[webp],quality[75]') : u;
-async function buscarAcuenta(q, p) {
-  const r = await fetch(ACUENTA_API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'User-Agent': UA, 'Origin': 'https://www.acuenta.cl', 'Referer': 'https://www.acuenta.cl/' },
-    body: JSON.stringify({
-      operationName: 'Buscar',
-      query: ACUENTA_QUERY,
-      variables: { i: { clientId: 'SUPER_BODEGA', storeReference: ACUENTA_LOCAL, search: [{ query: q }], pageSize: 40, currentPage: p } },
-    }),
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!r.ok) throw new Error(`aCuenta respondió ${r.status}`);
-  const j = await r.json();
-  if (j.errors?.length) throw new Error(`aCuenta: ${j.errors[0].message}`);
-  const out = [];
-  for (const x of j.data?.searchProducts?.products || []) {
-    const precio = Number(x.price);
-    if (!precio || !x.sku || !x.slug) continue;
-    const normal = Number(x.previousPrice) || null;
-    out.push({
-      id: String(x.sku),
-      n: String(x.name || '').trim(),
-      m: String(x.brand || '').trim(),
-      u: `https://www.acuenta.cl/p/${x.slug}`,
-      i: fotoAcuenta(x.photosUrl && x.photosUrl[0]),
-      precio,
-      normal: normal && normal > precio ? normal : null,
-      tarjeta: null,
-      disponible: x.isAvailable !== false,
+const fotoInstaleap = u => !u ? '' : /&sink$/.test(u) ? u.replace(/&sink$/, '&scale=size[300x300]&sink=format[webp],quality[75]') : u;
+
+function instaleap({ nombre, clientId, local, sitio }) {
+  return async function buscar(q, p) {
+    const r = await fetch(INSTALEAP_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': UA, 'Origin': sitio, 'Referer': sitio + '/' },
+      body: JSON.stringify({
+        operationName: 'Buscar',
+        query: INSTALEAP_QUERY,
+        variables: { i: { clientId, storeReference: local, search: [{ query: q }], pageSize: 40, currentPage: p } },
+      }),
+      signal: AbortSignal.timeout(30000),
     });
-  }
-  return out;
+    if (!r.ok) throw new Error(`${nombre} respondió ${r.status}`);
+    const j = await r.json();
+    if (j.errors?.length) throw new Error(`${nombre}: ${j.errors[0].message}`);
+    const out = [];
+    for (const x of j.data?.searchProducts?.products || []) {
+      const precio = Number(x.price);
+      if (!precio || !x.sku || !x.slug) continue;
+      const normal = Number(x.previousPrice) || null;
+      // Mayoristas: 'Caja', 'Manga', 'Pack'... con subUnit 'UN' y subQty = unidades del paquete.
+      // El nombre no siempre lo dice (p. ej. 'BEBIDA 350ML COCA COLA' es un pack de 6), así que se guarda aparte.
+      const k = x.unit && x.unit !== 'Unidad' && x.subUnit === 'UN' && Number(x.subQty) > 1 ? Math.round(Number(x.subQty)) : 1;
+      let n = String(x.name || '').replace(/\.+$/, '').replace(/\s+/g, ' ').trim();
+      if (k > 1 && !new RegExp(`x\\s*${k}\\b|\\b${k}\\s*(un|u|unidades)\\b`, 'i').test(n)) n += ` ${x.unit.toUpperCase()}x${k}`;
+      out.push({
+        id: String(x.sku),
+        n,
+        m: String(x.brand || '').trim(),
+        u: `${sitio}/p/${x.slug}`,
+        i: fotoInstaleap(x.photosUrl && x.photosUrl[0]),
+        precio,
+        normal: normal && normal > precio ? normal : null,
+        tarjeta: null,
+        disponible: x.isAvailable !== false,
+        k,
+      });
+    }
+    return out;
+  };
 }
 
 const TIENDAS = {
@@ -156,9 +164,14 @@ const TIENDAS = {
     url: (q, p) => `https://www.tottus.cl/tottus-cl/buscar?Ntt=${encodeURIComponent(q)}${p > 1 ? `&page=${p}` : ''}`,
     leer: leerTottus,
   },
+  // buscar(q, p) en vez de url + leer: consulta la API y devuelve los productos.
   acuenta: {
     nombre: 'aCuenta',
-    buscar: buscarAcuenta, // en vez de url + leer: consulta la API y devuelve los productos
+    buscar: instaleap({ nombre: 'aCuenta', clientId: 'SUPER_BODEGA', local: '580', sitio: 'https://www.acuenta.cl' }), // local El Monte
+  },
+  centralmayorista: {
+    nombre: 'Central Mayorista',
+    buscar: instaleap({ nombre: 'Central Mayorista', clientId: 'CENTRAL_MAYORISTA', local: '159', sitio: 'https://www.centralmayorista.cl' }), // local Macul
   },
 };
 
@@ -207,6 +220,7 @@ async function actualizarTienda(clave, canasta) {
     p.n = it.n; p.m = it.m; p.u = it.u; p.i = it.i; p.v = hoy;
     p.t = it.t;
     if (!it.disponible) p.x = 1; else delete p.x;
+    if (it.k > 1) p.k = it.k; else delete p.k; // unidades por paquete (mayoristas)
     // Si hoy ya hubo una ejecución, se reemplaza la fila de hoy.
     if (p.h.length && p.h[p.h.length - 1][0] === hoy) p.h.pop();
     const ult = p.h[p.h.length - 1];

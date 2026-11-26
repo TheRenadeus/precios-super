@@ -9,12 +9,14 @@ Funciona como app web instalable (PWA) desde GitHub Pages.
   Cada producto muestra su gráfico de precio y el mismo producto en los otros supermercados.
 - **Seguidos:** los productos que marcas con la estrella (se guardan solo en tu teléfono).
 
-Supermercados: **Jumbo, Santa Isabel, Tottus y aCuenta**. Líder, Unimarc, Alvi y Mayorista 10 bloquean
-la lectura automática de sus páginas desde servidores en la nube.
+Supermercados: **Jumbo, Santa Isabel, Tottus, aCuenta y Central Mayorista**. Unimarc, Alvi y Mayorista 10
+bloquean la lectura automática de sus páginas (responden 403), y el `robots.txt` de Líder prohíbe leer su búsqueda.
 
-aCuenta no trae los productos en el HTML de su búsqueda: se leen de la API de su plataforma (Instaleap), con la
-misma consulta que hace el navegador de cualquier visitante. Los precios son los del local El Monte, el que el
-sitio muestra por defecto (`ACUENTA_LOCAL` en `scripts/update-prices.mjs`).
+aCuenta y Central Mayorista no traen los productos en el HTML de su búsqueda: se leen de la API de su plataforma
+(Instaleap), con la misma consulta que hace el navegador de cualquier visitante. Los precios son los del local que
+cada sitio muestra por defecto: aCuenta El Monte y Central Mayorista Macul (`local` en `TIENDAS`, en
+`scripts/update-prices.mjs`). Central Mayorista vende por caja o pack: la cantidad del paquete se guarda en el
+campo `k` de cada producto, y la app divide por ella para el precio por unidad y para comparar con otras tiendas.
 
 ## 1. Publicar
 

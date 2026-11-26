@@ -19,7 +19,7 @@
   --bg:#EDF1EF;--surface:#FFFFFF;--ink:#1D2B36;--muted:#5E6B74;--line:#D5DDD9;--soft:#E2E8E5;
   --accent:#3D5A80;--on-accent:#FFFFFF;--up:#B23A48;--down:#2A7353;--warn:#B7791F;
   --grid:#E4EAE7;
-  --s-jumbo:#257de0;--s-santaisabel:#cf5a1c;--s-tottus:#009a7b;--s-acuenta:#a8329a;
+  --s-jumbo:#257de0;--s-santaisabel:#cf5a1c;--s-tottus:#009a7b;--s-acuenta:#a8329a;--s-centralmayorista:#5c4a2e;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -27,7 +27,7 @@
     --bg:#121A1F;--surface:#1B252C;--ink:#E6ECEF;--muted:#9AA8B1;--line:#2C3942;--soft:#243039;
     --accent:#8FB0D8;--on-accent:#121A1F;--up:#E0707D;--down:#5BBE8F;--warn:#E0A94A;
     --grid:#26323A;
-    --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;
+    --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;--s-centralmayorista:#e6d8b0;
   }
 }
 :root[data-theme="dark"]{
@@ -35,7 +35,7 @@
   --bg:#121A1F;--surface:#1B252C;--ink:#E6ECEF;--muted:#9AA8B1;--line:#2C3942;--soft:#243039;
   --accent:#8FB0D8;--on-accent:#121A1F;--up:#E0707D;--down:#5BBE8F;--warn:#E0A94A;
   --grid:#26323A;
-  --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;
+  --s-jumbo:#338ced;--s-santaisabel:#e76624;--s-tottus:#00a888;--s-acuenta:#d86fc8;--s-centralmayorista:#e6d8b0;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -215,8 +215,8 @@ h4.sec{margin:18px 0 0;font-size:1rem}
 
 <script>
 const DATA = 'data/';
-const TIENDAS = ['jumbo', 'santaisabel', 'tottus', 'acuenta'];
-const NOMBRES = { jumbo: 'Jumbo', santaisabel: 'Santa Isabel', tottus: 'Tottus', acuenta: 'aCuenta' };
+const TIENDAS = ['jumbo', 'santaisabel', 'tottus', 'acuenta', 'centralmayorista'];
+const NOMBRES = { jumbo: 'Jumbo', santaisabel: 'Santa Isabel', tottus: 'Tottus', acuenta: 'aCuenta', centralmayorista: 'Central Mayorista' };
 const color = s => `var(--s-${s})`;
 
 const $ = id => document.getElementById(id);
@@ -242,13 +242,23 @@ function tamano(nombre) {
   let mult = 1;
   const pack = s.match(/\bpack\s*(?:de\s*)?(\d+)\s*(?:un|u|unidades)?\b/) || s.match(/\b(\d+)\s*(?:un|u|unidades)\.?\s+(?=.*\d\s*(?:kg|g|gr|l|lt|ml|cc)\b)/);
   const multi = s.match(/\b(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(kg|kgs|g|gr|grs|l|lt|lts|ml|cc)\b/);
-  if (multi) { const [b, f] = UNI[multi[3]]; return { base: b, qty: +multi[1] * +multi[2] * f }; }
+  // pk: unidades del paquete que ya se leyeron del nombre (para no volver a multiplicar por k).
+  if (multi) { const [b, f] = UNI[multi[3]]; return { base: b, qty: +multi[1] * +multi[2] * f, pk: +multi[1] }; }
   if (pack) mult = +pack[1];
   const one = s.match(/(\d+(?:\.\d+)?)\s*(kg|kgs|kilos?|g|gr|grs|gramos|l|lt|lts|litros?|ml|cc)\b/);
-  if (one) { const [b, f] = UNI[one[2]]; return { base: b, qty: mult * +one[1] * f }; }
+  if (one) { const [b, f] = UNI[one[2]]; return { base: b, qty: mult * +one[1] * f, pk: mult }; }
   const un = s.match(/\b(\d+)\s*(?:un|unidades|u)\b/);
-  if (un) return { base: 'un', qty: +un[1] };
+  if (un) return { base: 'un', qty: +un[1], pk: +un[1] };
   return null;
+}
+// Mayoristas: k = unidades por paquete (dato de la tienda, no siempre en el nombre). 'uno' es el tamaño de una
+// unidad: sirve para encontrar el mismo producto en tiendas que lo venden suelto.
+function tamanoPaquete(nombre, k) {
+  const t = tamano(nombre);
+  if (!(k > 1)) return t && { ...t, uno: t.qty };
+  if (!t) return { base: 'un', qty: k, uno: 1 };
+  if (t.pk === k) return { ...t, uno: t.qty / k }; // "60UN" o "6UN 50GR": el nombre ya trae la cantidad del paquete
+  return { base: t.base, qty: t.qty * k, uno: t.qty };
 }
 function unitPrice(p) {
   const t = p.size;
@@ -288,8 +298,8 @@ async function cargar() {
       if (!p.h || !p.h.length) continue;
       const last = p.h[p.h.length - 1];
       const o = { key: s + ':' + id, store: s, id, n: p.n, m: p.m, u: p.u, i: p.i, t: p.t || [], v: p.v, h: p.h, out: !!p.x,
-        price: last[1], normal: last[2], card: last[3], fresh: p.v === db.fecha };
-      o.size = tamano(o.n);
+        price: last[1], normal: last[2], card: last[3], fresh: p.v === db.fecha, k: p.k || 1 };
+      o.size = tamanoPaquete(o.n, o.k);
       o.unit = unitPrice(o);
       o.search = norm(o.n + ' ' + o.m);
       ALL.push(o); BYKEY.set(o.key, o);
@@ -505,7 +515,7 @@ function renderStores() {
       : e.ok === false || atrasada ? `<span class="bad">Sin lectura nueva</span> · precios del ${fDia(e.fecha)}`
       : `${n.toLocaleString('es-CL')} productos · ${fDia(e.fecha)}`;
     return `<div class="store"><span class="row"><i class="dot" style="background:${color(s)}"></i>${NOMBRES[s]}</span><span class="st">${st}</span></div>`;
-  }).join('') + `<p class="hint" style="margin-top:10px">aCuenta: precios del local El Monte. No incluidos: Líder, Unimarc, Alvi y Mayorista 10. Sus sitios bloquean la lectura automática.</p>`;
+  }).join('') + `<p class="hint" style="margin-top:10px">aCuenta: precios del local El Monte. Central Mayorista: local Macul, precios para comerciantes socios, por caja o pack (el precio por unidad divide por la cantidad). No incluidos: Líder (su robots.txt prohíbe leer la búsqueda), Unimarc, Alvi y Mayorista 10 (bloquean la lectura automática).</p>`;
   const atrasadas = TIENDAS.filter(s => ESTADO[s] && ESTADO[s].fecha && (ESTADO[s].ok === false || ESTADO[s].fecha < HOY));
   $('banner').innerHTML = atrasadas.length ? `<div class="banner">${atrasadas.map(s => `<b>${NOMBRES[s]}</b> muestra precios del ${fDia(ESTADO[s].fecha)}`).join(' · ')}. No hubo lectura nueva hoy.</div>` : '';
 }
@@ -549,6 +559,9 @@ function renderFavs() {
 }
 
 // ---------- Equivalentes en otras tiendas ----------
+// Precio de una unidad: en una caja de 12 es el precio dividido por 12. Así se compara con el producto suelto.
+const porUno = p => p.size && p.size.qty ? p.price * p.size.uno / p.size.qty : p.price;
+const esPaquete = p => p.size && p.size.qty !== p.size.uno && p.k > 1;
 const CATALOGO_COMUN = new Set(['jumbo', 'santaisabel']); // comparten identificadores de producto
 function equivalentes(p) {
   const tok = s => new Set(norm(s).split(' ').filter(w => w.length > 1 && !/^\d/.test(w)));
@@ -561,7 +574,7 @@ function equivalentes(p) {
     if (exacto && CATALOGO_COMUN.has(p.store) && CATALOGO_COMUN.has(s)) { out.push({ q: exacto, exact: true }); continue; }
     let best = null, bs = 0;
     for (const q of ALL) {
-      if (q.store !== s || !p.size || !q.size || q.size.base !== p.size.base || Math.abs(q.size.qty - p.size.qty) > 0.01 * p.size.qty) continue;
+      if (q.store !== s || !p.size || !q.size || q.size.base !== p.size.base || Math.abs(q.size.uno - p.size.uno) > 0.01 * p.size.uno) continue;
       const mb = norm(q.m);
       if (ma && mb && ma !== mb && !ma.includes(mb) && !mb.includes(ma)) continue;
       const b = tok(q.n); let inter = 0; for (const w of a) if (b.has(w)) inter++;
@@ -606,8 +619,8 @@ function abrir(key) {
       <div class="stat"><small>Registrado desde</small><b class="num">${fDia(p.h[0][0])}</b></div>
     </div>
     <h4 class="sec">En otros supermercados</h4>
-    ${eq.length ? `<ul class="list">${eq.map(e => itemHtml(e.q, ((e.q.price / p.price) - 1) * 100)).join('')}</ul>
-      <p class="hint">${eq.some(e => !e.exact) ? 'Coincidencias por marca, nombre y tamaño: revisa que sea el mismo producto. ' : ''}El porcentaje compara con el precio de ${NOMBRES[p.store]}.</p>`
+    ${eq.length ? `<ul class="list">${eq.map(e => itemHtml(e.q, ((porUno(e.q) / porUno(p)) - 1) * 100)).join('')}</ul>
+      <p class="hint">${eq.some(e => !e.exact) ? 'Coincidencias por marca, nombre y tamaño: revisa que sea el mismo producto. ' : ''}El porcentaje compara con el precio de ${NOMBRES[p.store]}${esPaquete(p) || eq.some(e => esPaquete(e.q)) ? ', por unidad: en las cajas y packs se divide el precio por la cantidad que traen' : ''}.</p>`
       : '<p class="hint">No se encontró el mismo producto en las otras tiendas.</p>'}
     <details class="tbl"><summary>Historial como tabla</summary>
       <table><thead><tr><th>Desde</th><th>Precio</th><th>Normal</th></tr></thead><tbody>
