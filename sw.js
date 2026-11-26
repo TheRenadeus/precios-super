@@ -1,5 +1,5 @@
 // Cambia este número cada vez que publiques cambios en la página, para que el teléfono tome la versión nueva.
-const CACHE = 'precios-v14';
+const CACHE = 'precios-v16';
 const APP = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png'];
 
 self.addEventListener('install', e => {
@@ -17,8 +17,8 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   const mismo = url.origin === location.origin;
-  // Página y precios: primero internet (siempre lo más nuevo); sin conexión, la última copia guardada.
-  if (req.mode === 'navigate' || (mismo && url.pathname.includes('/data/'))) {
+  // Página, código (core.js), categorías y precios: primero internet (siempre lo más nuevo); sin conexión, la última copia guardada.
+  if (req.mode === 'navigate' || (mismo && (url.pathname.includes('/data/') || /\.(js|json)$/.test(url.pathname)))) {
     const clave = req.mode === 'navigate' ? './index.html' : url.pathname;
     e.respondWith(fetch(req)
       .then(res => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(clave, copy)); } return res; })

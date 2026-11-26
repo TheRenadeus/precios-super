@@ -8,9 +8,12 @@ const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ
 
 // ---------- Tamaño y precio por unidad ----------
 const UNI = { kg: ['kg', 1000], kgs: ['kg', 1000], kilo: ['kg', 1000], kilos: ['kg', 1000], g: ['kg', 1], gr: ['kg', 1], grs: ['kg', 1], gramos: ['kg', 1],
-  l: ['L', 1000], lt: ['L', 1000], lts: ['L', 1000], litro: ['L', 1000], litros: ['L', 1000], ml: ['L', 1], cc: ['L', 1] };
+  l: ['L', 1000], lt: ['L', 1000], lts: ['L', 1000], litro: ['L', 1000], litros: ['L', 1000], ml: ['L', 1], cc: ['L', 1],
+  galon: ['L', 3785], galones: ['L', 3785], gl: ['L', 3785], gal: ['L', 3785] }; // pinturas: 1 galón = 3,785 L
+// Fracciones ("1/4 galón", "1/2 kg") a número.
+const fracciones = s => s.replace(/\b(\d+)\/(\d+)\b/g, (m, a, b) => +b ? String(+(+a / +b).toFixed(3)) : m);
 function tamano(nombre) {
-  const s = norm(nombre).replace(/(\d),(\d)/g, '$1.$2');
+  const s = norm(fracciones(String(nombre || ''))).replace(/(\d),(\d)/g, '$1.$2');
   let mult = 1;
   const pack = s.match(/\bpack\s*(?:de\s*)?(\d+)\s*(?:un|u|unidades)?\b/) || s.match(/\b(\d+)\s*(?:un|u|unidades)\.?\s+(?=.*\d\s*(?:kg|g|gr|l|lt|ml|cc)\b)/)
     || s.match(/\d\s*(?:kg|kgs|g|gr|grs|l|lt|lts|ml|cc)\b.*?\b(\d+)\s*(?:un|u|unidades)\b/); // "200 g 6 un.": la cantidad después del tamaño
@@ -18,7 +21,7 @@ function tamano(nombre) {
   // pk: unidades del paquete que ya se leyeron del nombre (para no volver a multiplicar por k).
   if (multi) { const [b, f] = UNI[multi[3]]; return { base: b, qty: +multi[1] * +multi[2] * f, pk: +multi[1] }; }
   if (pack) mult = +pack[1];
-  const one = s.match(/(\d+(?:\.\d+)?)\s*(kg|kgs|kilos?|g|gr|grs|gramos|l|lt|lts|litros?|ml|cc)\b/);
+  const one = s.match(/(\d+(?:\.\d+)?)\s*(kg|kgs|kilos?|g|gr|grs|gramos|l|lt|lts|litros?|ml|cc|galon|galones|gl|gal)\b/);
   if (one) { const [b, f] = UNI[one[2]]; return { base: b, qty: mult * +one[1] * f, pk: mult }; }
   const un = s.match(/\b(\d+)\s*(?:un|unidades|u)\b/);
   if (un) return { base: 'un', qty: +un[1], pk: +un[1] };
@@ -201,10 +204,31 @@ function mismoProducto(p, q) {
   if ((p.size?.pk || 1) !== (q.size?.pk || 1)) return false; // botella de 3 L ≠ pack de 6 de 500 cc
   return true;
 }
-// Parecido entre dos productos sin tamaño de la misma marca: nombre parecido y, si ambos traen código de modelo, uno en común.
+// Medidas que trae el nombre (6 W, 18 V, 13 mm, 440 lm, socket E27...): unidad → valores.
+// Si dos productos traen la misma unidad con valores distintos, no son el mismo (ampolleta 6 W ≠ 4 W).
+const MEDIDAS_RE = /(\d+(?:[.,]\d+)?)\s*(w|v|a|mm|cm|ah|nm|rpm|lm|hp|kg|lts?|l|ml|gl|galon|galones|mts?|m)\b/g;
+function medidas(p) {
+  if (p.med) return p.med;
+  const m = new Map(), s = norm(fracciones(String(p.n || ''))).replace(/(\d),(\d)/g, '$1.$2');
+  for (const [, v, u0] of s.matchAll(MEDIDAS_RE)) {
+    const u = { lt: 'l', lts: 'l', galon: 'gl', galones: 'gl', mt: 'm', mts: 'm' }[u0] || u0;
+    if (!m.has(u)) m.set(u, new Set());
+    m.get(u).add(+v);
+  }
+  const socket = s.match(/\b(e27|e14|gu10|gu5\.3|mr16|g9)\b/);
+  if (socket) m.set('socket', new Set([socket[1]]));
+  return (p.med = m);
+}
+function medidasChocan(a, b) {
+  const ma = medidas(a), mb = medidas(b);
+  for (const [u, va] of ma) { const vb = mb.get(u); if (vb && ![...va].some(v => vb.has(v))) return true; }
+  return false;
+}
+// Parecido entre dos productos sin tamaño de la misma marca: nombre parecido, las mismas medidas y, si ambos
+// traen código de modelo, uno en común.
 function parecidoSinTamano(a, b) {
   if (!a.mn || !b.mn || (a.mn !== b.mn && !a.mn.includes(b.mn) && !b.mn.includes(a.mn))) return -1;
-  if (!mismoProducto(a, b)) return -1;
+  if (!mismoProducto(a, b) || medidasChocan(a, b)) return -1;
   const ca = codigos(a), cb = codigos(b);
   const comun = [...ca].some(c => cb.has(c));
   if (ca.size && cb.size && !comun) return -1;
