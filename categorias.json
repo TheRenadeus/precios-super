@@ -1,0 +1,102 @@
+{
+  "_comentario": "Categorías y subcategorías de la app. Cada término de canasta.json (supermercados) o ferreteria.json (ferreterías) va en una subcategoría; los productos encontrados con ese término quedan en ella. Si agregas un término a la canasta, agrégalo también aquí.",
+  "super": {
+    "Lácteos y huevos": {
+      "Leche": ["leche entera", "leche semidescremada", "leche descremada", "leche sin lactosa", "leche en polvo", "leche condensada", "crema de leche"],
+      "Mantequilla y margarina": ["mantequilla", "margarina"],
+      "Quesos": ["queso gouda", "queso mantecoso", "queso rallado", "quesillo"],
+      "Yogurt y postres": ["yogurt", "postre"],
+      "Huevos": ["huevos"]
+    },
+    "Desayuno y panadería": {
+      "Pan": ["pan de molde", "tostadas"],
+      "Galletas": ["galletas"],
+      "Cereales y avena": ["cereal", "avena"],
+      "Mermelada, manjar y miel": ["mermelada", "manjar", "miel"],
+      "Café, té y cacao": ["cafe", "cafe en grano", "te", "hierbas", "cacao"],
+      "Azúcar y endulzantes": ["azucar", "endulzante"]
+    },
+    "Despensa": {
+      "Arroz y fideos": ["arroz", "fideos"],
+      "Harina y repostería": ["harina", "polvo de hornear", "levadura"],
+      "Aceites y vinagres": ["aceite", "aceite de oliva", "vinagre"],
+      "Salsas y aderezos": ["sal", "ketchup", "mayonesa", "mostaza", "salsa de tomate", "salsa de soya", "aji", "merken"],
+      "Legumbres": ["porotos", "lentejas", "garbanzos"],
+      "Conservas": ["arvejas", "choclo", "atun", "jurel", "sardinas", "duraznos en conserva"],
+      "Sopas y caldos": ["sopa", "caldo", "pure instantaneo"],
+      "Especias": ["clavo de olor", "canela", "comino", "oregano", "pimienta", "paprika", "ajo en polvo", "alino completo", "laurel", "curry", "nuez moscada"]
+    },
+    "Carnes y pescados": {
+      "Pollo": ["pollo", "pechuga de pollo", "trutro"],
+      "Vacuno": ["carne molida", "posta", "lomo"],
+      "Cerdo": ["cerdo", "chuleta", "costillar"],
+      "Embutidos y hamburguesas": ["salchichas", "vienesas", "jamon", "longaniza", "hamburguesa"],
+      "Pescados": ["pescado", "salmon", "merluza"]
+    },
+    "Frutas y verduras": {
+      "Verduras": ["papas", "tomate", "cebolla", "ajo", "zanahoria", "lechuga", "zapallo", "pepino", "pimenton", "palta"],
+      "Frutas": ["platano", "manzana", "naranja", "limon", "frutilla", "uva", "pera", "mandarina"]
+    },
+    "Congelados": {
+      "Congelados": ["verduras congeladas", "papas fritas congeladas", "helado", "empanadas"]
+    },
+    "Bebidas y licores": {
+      "Aguas": ["agua mineral"],
+      "Bebidas y jugos": ["bebida", "jugo", "jugo en polvo", "bebida energetica"],
+      "Cervezas, vinos y licores": ["cerveza", "vino", "pisco"]
+    },
+    "Snacks y dulces": {
+      "Snacks salados": ["papas fritas", "mani", "frutos secos"],
+      "Chocolates": ["chocolate"]
+    },
+    "Bebé": {
+      "Pañales y toallitas": ["panales", "toallitas humedas"],
+      "Leche infantil": ["leche infantil"]
+    },
+    "Limpieza": {
+      "Papeles": ["papel higienico", "toalla de papel", "servilletas"],
+      "Lavado de ropa": ["detergente", "suavizante"],
+      "Limpieza del hogar": ["cloro", "lavaloza", "limpiador", "desinfectante", "bolsas de basura", "esponja"]
+    },
+    "Cuidado personal": {
+      "Higiene bucal": ["pasta dental", "cepillo de dientes", "enjuague bucal"],
+      "Cabello": ["shampoo", "acondicionador"],
+      "Cuerpo": ["jabon", "desodorante", "protector solar", "afeitadora"],
+      "Higiene femenina": ["toallas higienicas"]
+    },
+    "Mascotas": {
+      "Perros": ["comida para perros"],
+      "Gatos": ["comida para gatos", "arena para gatos"]
+    }
+  },
+  "ferreteria": {
+    "Herramientas eléctricas": {
+      "Taladros y atornilladores": ["taladro", "atornillador", "rotomartillo"],
+      "Esmeriles y sierras": ["esmeril angular", "sierra circular"]
+    },
+    "Herramientas manuales": {
+      "Sets y cajas": ["set de herramientas"],
+      "Martillos y destornilladores": ["martillo", "destornillador"],
+      "Medición": ["huincha de medir"]
+    },
+    "Pinturas": {
+      "Pinturas y esmaltes": ["pintura latex", "esmalte al agua", "esmalte sintetico", "pintura en spray"],
+      "Brochas y rodillos": ["brocha", "rodillo"]
+    },
+    "Construcción": {
+      "Cemento y yeso": ["cemento", "yeso"],
+      "Tableros": ["volcanita", "terciado", "osb"],
+      "Adhesivos y siliconas": ["silicona", "adhesivo de montaje"]
+    },
+    "Electricidad": {
+      "Iluminación": ["ampolleta led"],
+      "Cables, enchufes y alargadores": ["alargador", "cable electrico", "enchufe"]
+    },
+    "Seguridad, jardín y otros": {
+      "Seguridad": ["candado", "guantes de trabajo"],
+      "Jardín": ["manguera", "carretilla"],
+      "Escaleras": ["escalera"],
+      "Lubricantes": ["lubricante"]
+    }
+  }
+}
