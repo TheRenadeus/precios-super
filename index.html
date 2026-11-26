@@ -76,9 +76,21 @@ a{color:var(--accent)}
 .chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink);font-weight:600}
 .chip[aria-pressed="true"]::after{content:'✓';color:var(--accent);font-weight:700;margin-left:2px}
 /* Tiendas: una sola fila que se desliza, para no ocupar media pantalla en el teléfono */
-#storeChips{flex-wrap:nowrap;overflow-x:auto;margin-left:-16px;margin-right:-16px;padding:2px 16px 4px;scrollbar-width:none;scroll-padding:16px}
-#storeChips::-webkit-scrollbar{display:none}
-#storeChips .chip{flex:none}
+/* Selector de tiendas: se despliega en dos columnas; todas a la vista y nada se corre al marcar. */
+.tsel{margin-top:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.tsel summary{min-height:44px;padding:8px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;list-style:none}
+.tsel summary::-webkit-details-marker{display:none}
+.tsel summary .dots{display:inline-flex;gap:3px;flex:none}
+.tsel summary .dots .dot{width:8px;height:8px}
+.tsel summary::after{content:"Cambiar ▾";margin-left:auto;color:var(--accent);font-size:.88rem;white-space:nowrap}
+.tsel[open] summary::after{content:"Listo ▴"}
+.tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:2px 10px 10px}
+.tgrid .chip{width:100%;justify-content:flex-start;padding:6px 10px;gap:6px;font-size:.86rem;text-align:left;line-height:1.2;min-width:0}
+.tgrid .chip::after{content:"";margin-left:auto;width:1em;text-align:center}
+.tgrid .chip[aria-pressed="true"]::after{content:"✓"}
+.tgrid .todas{grid-column:1/-1;justify-content:center}
+.tgrid .todas::after{content:none}
+.tgrid .todas:disabled{opacity:.55;cursor:default}
 #rangeChips .chip[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
 #rangeChips .chip[aria-pressed="true"]::after{content:none}
 .key{width:14px;height:3px;border-radius:2px;display:inline-block;flex:none}
@@ -326,7 +338,7 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
     <div class="panel">
       <label class="sr" for="q">Buscar producto</label>
       <input id="q" class="txt" type="search" placeholder="Buscar: leche, arroz, Colun…" autocomplete="off">
-      <div class="chips" id="storeChips"></div>
+      <details class="tsel" id="storeSel"><summary id="storeSum"></summary><div class="tgrid" id="storeChips" role="group" aria-label="Tiendas"></div></details>
       <div class="filters">
         <label><span class="sr">Categoría</span>
           <select id="cat" class="txt"><option value="">Todas las categorías</option></select></label>
@@ -781,7 +793,10 @@ for (const s of TIENDAS) if (!store.get('tiendasConocidas', LEIDAS).includes(s))
 store.set('tiendasConocidas', TIENDAS); store.set('tiendas', [...sel]);
 let shown = 60;
 function renderStoreChips() {
-  $('storeChips').innerHTML = TIENDAS.map(s => `<button class="chip" data-s="${s}" aria-pressed="${sel.has(s)}"><i class="dot" style="background:${color(s)}"></i>${NOMBRES[s]}</button>`).join('');
+  const todas = sel.size === TIENDAS.length, elegidas = TIENDAS.filter(s => sel.has(s));
+  $('storeSum').innerHTML = `<span class="dots" aria-hidden="true">${todas ? '' : elegidas.map(s => `<i class="dot" style="background:${color(s)}"></i>`).join('')}</span><span>${todas ? `Todas las tiendas (${TIENDAS.length})` : elegidas.length <= 2 ? elegidas.map(s => NOMBRES[s]).join(' y ') : `${elegidas.length} de ${TIENDAS.length} tiendas`}</span>`;
+  $('storeChips').innerHTML = TIENDAS.map(s => `<button class="chip" data-s="${s}" aria-pressed="${sel.has(s)}"><i class="dot" style="background:${color(s)}"></i>${NOMBRES[s]}</button>`).join('')
+    + `<button class="chip todas" data-sall="1"${todas ? ' disabled' : ''}>Marcar todas</button>`;
 }
 function buscar() {
   const q = norm($('q').value);
@@ -1322,10 +1337,11 @@ document.addEventListener('click', ev => {
   if (tab) { ver(tab.dataset.view); return; }
   const r = ev.target.closest('[data-r]');
   if (r) { RANGO = +r.dataset.r; store.set('rango', RANGO); renderIndice(); return; }
-  const s = ev.target.closest('[data-s]');
+  const s = ev.target.closest('[data-s], [data-sall]');
   if (s) {
     const k = s.dataset.s;
-    if (sel.has(k) && sel.size > 1) sel.delete(k); else sel.add(k);
+    if (!k) sel = new Set(TIENDAS);
+    else if (sel.has(k) && sel.size > 1) sel.delete(k); else sel.add(k);
     store.set('tiendas', [...sel]); shown = 60; renderStoreChips(); buscar();
   }
 });
