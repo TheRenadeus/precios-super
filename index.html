@@ -734,6 +734,18 @@ function buscar() {
   const words = q ? q.split(' ') : [];
   const cat = $('cat').value, sort = $('sort').value;
   let r = ALL.filter(p => sel.has(p.store) && (!cat || p.t.includes(cat)) && words.every(w => p.search.includes(w)));
+  // El mismo producto en varias tiendas va en una sola fila: la más barata (por unidad) entre las tiendas marcadas.
+  // La fila dice en cuántas tiendas está; al tocarla, la ficha muestra el precio en cada una.
+  grupos();
+  const filaDe = new Map(), unicos = [];
+  for (const p of r) {
+    const g = GRUPO_DE.get(p.key);
+    if (!g) { unicos.push(p); continue; }
+    const i = filaDe.get(g);
+    if (i === undefined) { filaDe.set(g, unicos.length); unicos.push(p); }
+    else if (porUno(p) < porUno(unicos[i])) unicos[i] = p;
+  }
+  r = unicos;
   const score = p => (p.fresh ? 0 : 1000) + (q && p.t.some(t => norm(t) === q || q.startsWith(norm(t))) ? 0 : 2) + (q && p.search.startsWith(q) ? 0 : 1);
   const orden = {
     rel: (a, b) => score(a) - score(b) || a.price - b.price,
@@ -747,7 +759,7 @@ function buscar() {
   r.sort(portada ? (a, b) => (b.fresh - a.fresh) || orden.disc(a, b) : orden[sort]);
   $('count').textContent = !r.length ? '' : portada
     ? `Mayores descuentos de hoy · ${r.length.toLocaleString('es-CL')} productos en total`
-    : `${r.length.toLocaleString('es-CL')} productos`;
+    : `${r.length.toLocaleString('es-CL')} producto${r.length === 1 ? '' : 's'}`;
   $('results').innerHTML = r.length ? r.slice(0, shown).map(p => itemHtml(p)).join('')
     : `<li class="empty">No hay productos con esos filtros.${q ? '<br>Prueba con menos palabras o revisa las tiendas marcadas.' : ''}</li>`;
   $('moreBtn').hidden = r.length <= shown;
