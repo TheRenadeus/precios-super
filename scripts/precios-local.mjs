@@ -15,7 +15,9 @@ const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
 const tiendas = process.argv.slice(2).length ? process.argv.slice(2) : ['tottus'];
 
 function correr(cmd, args, { permitirFallo = false } = {}) {
-  const r = spawnSync(cmd, args, { cwd: raiz, stdio: 'inherit', shell: process.platform === 'win32' });
+  // Sin consola (shell): en Windows la consola corta en los espacios la ruta de Node
+  // ("C:\Program Files\...") y el mensaje del commit. git.exe se encuentra igual sin ella.
+  const r = spawnSync(cmd, args, { cwd: raiz, stdio: 'inherit' });
   if (r.status !== 0 && !permitirFallo) {
     console.error(`\nFalló: ${cmd} ${args.join(' ')}`);
     process.exit(r.status || 1);
