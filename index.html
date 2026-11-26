@@ -136,6 +136,53 @@ select.txt{appearance:auto}
 .vs-leyenda span{display:inline-flex;align-items:center;gap:6px}
 .vs-leyenda b{color:var(--ink)}
 .item.cmp{grid-template-columns:1fr}
+/* Comparados: fila desplegable con la tabla tienda por tienda */
+.item.grp{cursor:default;padding:0}
+.item.grp:hover{background-color:transparent}
+.grp-head{all:unset;box-sizing:border-box;display:block;width:100%;padding:12px 6px;cursor:pointer;border-radius:12px}
+.grp-head:hover,.grp-head:focus-visible{background:var(--soft)}
+.grp-head .name{display:block}
+.grp-head .pills{display:flex}
+.grp-head small.hint{display:block;margin-top:4px}
+.grp-more{display:block;margin-top:6px;color:var(--accent);font-weight:600;font-size:.85rem}
+.grp-body{padding:2px 6px 14px}
+.grp-body table{margin-top:4px}
+.grp-body tr.win td{background:color-mix(in srgb,var(--tag) 30%,transparent)}
+.lnk{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:3px;min-height:32px}
+.btn.small{padding:9px 12px;font-size:.88rem;border-radius:12px}
+/* Buscador chico */
+.picker{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}
+.pick{all:unset;box-sizing:border-box;width:100%;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer;min-height:48px}
+.pick:hover,.pick:focus-visible{border-color:var(--accent)}
+.pick b{display:block;font-weight:600;line-height:1.25}
+.pick small{display:block}
+.pick-add{flex:none;color:var(--accent);font-weight:700;font-size:.88rem}
+/* Canasta */
+.kitem{grid-template-columns:1fr auto!important;cursor:default}
+.kitem:hover{background-color:transparent}
+.qty{display:flex;align-items:center;gap:4px}
+.qty button{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--bg);cursor:pointer;font-size:1.1rem;font-weight:700}
+.qty b{min-width:24px;text-align:center}
+.qty .del{border:0;background:transparent;color:var(--muted);font-size:1rem}
+.ktot{display:grid;gap:6px;margin-top:10px}
+.ktot-row{display:grid;grid-template-columns:1fr auto;gap:0 10px;align-items:baseline;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.ktot-row span{display:inline-flex;align-items:center;gap:7px;font-weight:600}
+.ktot-row b{font-size:1.1rem}
+.ktot-row small{grid-column:1/-1}
+.ktot-row.win{background:var(--tag);border-color:var(--tag-edge);color:var(--on-tag)}
+.ktot-row.win small{color:var(--on-tag)}
+.mix{margin-top:12px;padding:12px;border-radius:14px;background:var(--accent-soft);display:grid;gap:4px}
+/* Producto a producto */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.duo-card{position:relative;display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--bg);min-width:0}
+.duo-card.vacio{align-items:center;justify-content:center;text-align:center;min-height:160px;border-style:dashed}
+.duo-card img,.duo-card .ph{width:64px;height:64px;border-radius:12px;object-fit:contain;background:#fff;border:1px solid var(--line);padding:3px}
+.duo-card .name{line-height:1.25;font-size:.92rem;overflow-wrap:anywhere}
+.duo-price{font-size:1.5rem;font-weight:700}
+.duo-card .pills{margin-top:4px}
+.duo-card .pill{font-size:.76rem;padding:2px 8px}
+.duo-card .btn{margin-top:6px}
+.x.small{position:absolute;top:8px;right:8px;width:32px;height:32px;font-size:.9rem}
 .pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:3px 10px;font-size:.84rem}
 .pill b{font-weight:700}
@@ -278,6 +325,24 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
   </section>
 
   <section id="view-comparar" hidden>
+    <div class="panel" id="panelCanasta">
+      <h2>Mi canasta</h2>
+      <p class="hint">Agrega productos uno a uno y mira cuánto cuesta la canasta en cada supermercado.</p>
+      <label class="sr" for="kq">Agregar producto a la canasta</label>
+      <input id="kq" class="txt" type="search" placeholder="Agregar: leche, arroz, aceite…" autocomplete="off" style="margin-top:12px">
+      <ul class="picker" id="kPick"></ul>
+      <ul class="list" id="kItems"></ul>
+      <div id="kTot"></div>
+    </div>
+    <div class="panel" id="panelVs">
+      <h2>Producto a producto</h2>
+      <p class="hint">Elige dos productos (por ejemplo, dos marcas) y compáralos lado a lado.</p>
+      <label class="sr" for="pq">Buscar producto para comparar</label>
+      <input id="pq" class="txt" type="search" placeholder="Buscar producto para comparar…" autocomplete="off" style="margin-top:12px">
+      <ul class="picker" id="pPick"></ul>
+      <div class="duo" id="duo"></div>
+      <div id="duoRes"></div>
+    </div>
     <div class="panel">
       <h2>¿Qué supermercado es más barato?</h2>
       <p class="hint">El mismo producto comparado entre tiendas, con los precios de hoy.</p>
@@ -753,6 +818,7 @@ function equivalentes(p, { soloFrescos = false } = {}) {
 // ---------- Comparar tiendas ----------
 // Grupos del mismo producto en varias tiendas (solo precios de hoy). Cada producto entra en un solo grupo.
 let GRUPOS = null;
+const GRUPO_DE = new Map(); // clave de producto → su grupo
 function grupos() {
   if (GRUPOS) return GRUPOS;
   indiceTamanos();
@@ -767,7 +833,9 @@ function grupos() {
     if (miembros.length < 2) continue;
     miembros.sort((x, y) => porUno(x) - porUno(y));
     miembros.forEach(m => usados.add(m.key));
-    GRUPOS.push({ p, miembros, min: porUno(miembros[0]), t: [...new Set(miembros.flatMap(m => m.t))] });
+    const g = { p, miembros, min: porUno(miembros[0]), t: [...new Set(miembros.flatMap(m => m.t))] };
+    GRUPOS.push(g);
+    miembros.forEach(m => GRUPO_DE.set(m.key, g));
   }
   return GRUPOS;
 }
@@ -776,6 +844,7 @@ const gana = (m, g) => porUno(m) <= g.min * 1.005; // empate si la diferencia es
 
 let cShown = 30, vShown = 20;
 function renderComparar() {
+  renderCanasta(); renderDuo();
   const cat = $('cCat').value;
   const G = grupos().filter(g => enCat(g, cat));
 
@@ -844,13 +913,164 @@ function renderComparar() {
   $('gMore').hidden = lista.length <= cShown;
 }
 const precioUno = m => `${fmt(porUno(m))}${esPaquete(m) ? '<sup title="Precio de una unidad dentro de una caja o pack">*</sup>' : ''}`;
+// Fila de "Productos comparados": se despliega con la tabla tienda por tienda.
+const ABIERTOS = new Set();
 function filaGrupo(g) {
   const caro = porUno(g.miembros.at(-1));
-  return `<li class="item cmp" tabindex="0" data-k="${esc(g.p.key)}">
-    <div><div class="name">${esc(g.p.n)}</div>
-      <div class="pills">${g.miembros.map(m => `<span class="pill${gana(m, g) ? ' win' : ''}"><i class="dot" style="background:${color(m.store)}"></i>${NOMBRES[m.store]} <b class="num">${precioUno(m)}</b></span>`).join('')}</div>
+  const abierto = ABIERTOS.has(g.p.key);
+  return `<li class="item cmp grp${abierto ? ' open' : ''}">
+    <button class="grp-head" data-g="${esc(g.p.key)}" aria-expanded="${abierto}">
+      <span class="name">${esc(g.p.n)}</span>
+      <span class="pills">${g.miembros.map(m => `<span class="pill${gana(m, g) ? ' win' : ''}"><i class="dot" style="background:${color(m.store)}"></i>${NOMBRES[m.store]} <b class="num">${precioUno(m)}</b></span>`).join('')}</span>
       ${caro > g.min * 1.005 ? `<small class="hint">Diferencia entre la más cara y la más barata: <b class="num">${pct((caro / g.min - 1) * 100)}</b></small>` : ''}
-    </div></li>`;
+      <span class="grp-more">${abierto ? 'Ocultar detalle ▴' : 'Ver tienda por tienda ▾'}</span>
+    </button>
+    ${abierto ? tablaTiendas(g) : ''}</li>`;
+}
+function tablaTiendas(g) {
+  const u = g.miembros[0].unit ? (g.miembros[0].unit.u === 'c/u' ? 'unidad' : g.miembros[0].unit.u) : null;
+  return `<div class="grp-body">
+    <table><thead><tr><th>Tienda</th><th>Precio</th><th>Antes</th>${u ? `<th>Por ${u}</th>` : ''}<th>vs más barato</th></tr></thead><tbody>
+    ${g.miembros.map(m => {
+      const d = (porUno(m) / g.min - 1) * 100;
+      return `<tr class="${gana(m, g) ? 'win' : ''}">
+        <td><button class="lnk" data-k="${esc(m.key)}"><i class="dot" style="background:${color(m.store)}"></i>${NOMBRES[m.store]}</button>${esPaquete(m) ? `<br><small class="hint">${m.n.match(/[a-z]+x\d+$/i)?.[0] || 'pack de ' + m.k}</small>` : ''}</td>
+        <td class="num">${fmt(m.price)}</td>
+        <td class="num">${m.normal ? `<span class="strike">${fmt(m.normal)}</span>` : '—'}</td>
+        ${u ? `<td class="num">${m.unit ? fmt(m.unit.v) : '—'}</td>` : ''}
+        <td class="num">${gana(m, g) ? '<b>más barato</b>' : pct(d)}</td></tr>`;
+    }).join('')}</tbody></table>
+    <div class="row" style="margin-top:10px">
+      <button class="btn small" data-add="${esc(g.p.key)}">🛒 Agregar a mi canasta</button>
+      <button class="btn small ghost" data-duo="${esc(g.p.key)}">⇄ Comparar con otro</button>
+    </div></div>`;
+}
+
+// ---------- Buscador chico para elegir productos (canasta y producto a producto) ----------
+function elegir(q, limite = 6) {
+  const words = norm(q).split(' ').filter(Boolean);
+  if (!words.length) return [];
+  const r = ALL.filter(p => p.fresh && words.every(w => p.search.includes(w)));
+  // Primero los que están en más tiendas (sirven más para comparar), después los más baratos.
+  r.sort((a, b) => ((GRUPO_DE.get(b.key)?.miembros.length || 1) - (GRUPO_DE.get(a.key)?.miembros.length || 1)) || a.price - b.price);
+  const vistos = new Set(), out = [];
+  for (const p of r) { const g = GRUPO_DE.get(p.key); const id = g ? g.p.key : p.key; if (vistos.has(id)) continue; vistos.add(id); out.push(g ? g.p : p); if (out.length >= limite) break; }
+  return out;
+}
+function pickerHtml(lista, accion, etiqueta) {
+  return lista.map(p => {
+    const g = GRUPO_DE.get(p.key);
+    return `<li><button class="pick" data-${accion}="${esc(p.key)}">
+      <span><b>${esc(p.n)}</b><small class="hint">${g ? `En ${g.miembros.length} tiendas · desde ${fmt(g.min)}` : `Solo en ${NOMBRES[p.store]} · ${fmt(p.price)}`}</small></span>
+      <span class="pick-add" aria-hidden="true">${etiqueta}</span></button></li>`;
+  }).join('');
+}
+
+// ---------- Mi canasta ----------
+// Se guarda la clave del producto elegido y la cantidad. El precio en cada tienda sale de su grupo (el mismo producto).
+let canasta = store.get('canasta', []); // [{ k, n }]
+const guardarCanasta = () => store.set('canasta', canasta);
+function agregarCanasta(k) {
+  const it = canasta.find(x => x.k === k);
+  if (it) it.n++; else canasta.push({ k, n: 1 });
+  guardarCanasta();
+}
+function ofertas(p) { // tienda → producto equivalente con precio de hoy
+  const m = new Map();
+  const g = GRUPO_DE.get(p.key);
+  for (const q of g ? g.miembros : (p.fresh ? [p] : [])) m.set(q.store, q);
+  return m;
+}
+function renderCanasta() {
+  grupos();
+  const items = canasta.map(x => ({ ...x, p: BYKEY.get(x.k) })).filter(x => x.p);
+  if (!items.length) {
+    $('kItems').innerHTML = '<li class="empty">Tu canasta está vacía. Busca un producto arriba, o usa «🛒 Agregar a mi canasta» en su ficha.</li>';
+    $('kTot').innerHTML = ''; return;
+  }
+  const filas = items.map(x => ({ ...x, of: ofertas(x.p) }));
+  $('kItems').innerHTML = filas.map(x => {
+    const mejor = [...x.of.values()].sort((a, b) => porUno(a) - porUno(b))[0];
+    return `<li class="item cmp kitem">
+      <div><div class="name">${esc(x.p.n)}</div>
+        <small class="hint">${mejor ? `Más barato: ${NOMBRES[mejor.store]} ${precioUno(mejor)} · en ${x.of.size} tienda${x.of.size === 1 ? '' : 's'}` : 'Sin precio de hoy'}</small></div>
+      <div class="qty" role="group" aria-label="Cantidad de ${esc(x.p.n)}">
+        <button data-kmenos="${esc(x.k)}" aria-label="Quitar uno">−</button><b class="num">${x.n}</b><button data-kmas="${esc(x.k)}" aria-label="Agregar uno">+</button>
+        <button class="del" data-kdel="${esc(x.k)}" aria-label="Sacar de la canasta">✕</button></div></li>`;
+  }).join('');
+
+  // Total por tienda: completas primero (de menor a mayor), después las que no tienen todo.
+  const tot = TIENDAS.map(s => {
+    let total = 0, faltan = 0;
+    for (const x of filas) { const q = x.of.get(s); if (q) total += porUno(q) * x.n; else faltan++; }
+    return { s, total, faltan };
+  }).filter(t => t.faltan < filas.length).sort((a, b) => a.faltan - b.faltan || a.total - b.total);
+  const completas = tot.filter(t => !t.faltan);
+  // Comprando cada producto donde está más barato.
+  let mix = 0; const dondeMix = new Map();
+  for (const x of filas) {
+    const q = [...x.of.values()].sort((a, b) => porUno(a) - porUno(b))[0];
+    if (!q) continue;
+    mix += porUno(q) * x.n;
+    dondeMix.set(q.store, (dondeMix.get(q.store) || 0) + 1);
+  }
+  const sinPrecio = filas.filter(x => !x.of.size).length;
+  const ahorro = completas.length ? completas.at(-1).total - completas[0].total : 0;
+  $('kTot').innerHTML = `
+    <h4 class="sec">Total por supermercado</h4>
+    <div class="ktot">${tot.map((t, i) => `<div class="ktot-row${!t.faltan && i === 0 ? ' win' : ''}">
+      <span><i class="dot" style="background:${color(t.s)}"></i>${NOMBRES[t.s]}</span>
+      <b class="num">${fmt(t.total)}</b>
+      <small class="hint">${t.faltan ? `faltan ${t.faltan} de ${filas.length}` : (i === 0 ? 'la más barata' : `+${fmt(t.total - completas[0].total)}`)}</small></div>`).join('')}</div>
+    ${completas.length > 1 ? `<p class="hint" style="margin-top:8px">Entre las tiendas que tienen todo, la diferencia es de <b class="num">${fmt(ahorro)}</b>.</p>` : ''}
+    ${!completas.length ? '<p class="hint" style="margin-top:8px">Ninguna tienda tiene todos los productos de tu canasta hoy.</p>' : ''}
+    <div class="mix">
+      <b>Comprando cada producto donde está más barato: <span class="num">${fmt(mix)}</span></b>
+      <small class="hint">${[...dondeMix].map(([s, n]) => `${NOMBRES[s]} (${n})`).join(' · ')}${completas.length && completas[0].total > mix + 1 ? ` · ahorras ${fmt(completas[0].total - mix)} frente a ${NOMBRES[completas[0].s]}` : ''}</small>
+    </div>
+    <p class="hint" style="margin-top:8px">${sinPrecio ? `${sinPrecio} producto${sinPrecio > 1 ? 's' : ''} sin precio de hoy. ` : ''}Precios por unidad del mismo tamaño: en cajas y packs de mayoristas (*) se divide por la cantidad, aunque allá se compran por caja.</p>
+    <button class="more" id="kVaciar">Vaciar canasta</button>`;
+}
+
+// ---------- Producto a producto ----------
+let duo = store.get('duo', []); // [clave A, clave B]
+function ponerEnDuo(k) {
+  if (duo.includes(k)) return;
+  if (duo.length < 2) duo.push(k); else duo[1] = k;
+  store.set('duo', duo);
+}
+function renderDuo() {
+  grupos();
+  const ps = duo.map(k => BYKEY.get(k)).filter(Boolean);
+  const tarjeta = (p, i) => {
+    if (!p) return `<div class="duo-card vacio"><span class="hint">${i === 0 ? 'Primer producto' : 'Segundo producto'}<br>Búscalo arriba</span></div>`;
+    const of = [...ofertas(p).values()].sort((a, b) => porUno(a) - porUno(b));
+    const best = of[0] || p;
+    const ch = changeSince(p, 30);
+    const img = p.i ? `<img src="${esc(p.i)}" alt="" referrerpolicy="no-referrer" data-ph="${p.store}">` : ph(p.store);
+    return `<div class="duo-card">
+      <button class="x small" data-duodel="${esc(p.key)}" aria-label="Quitar ${esc(p.n)}">✕</button>
+      ${img}
+      <b class="name">${esc(p.n)}</b>
+      <span class="hint">${p.m ? esc(p.m) : ''}</span>
+      <span class="duo-price num">${precioUno(best)}</span>
+      <span class="hint">más barato en <b>${NOMBRES[best.store]}</b></span>
+      ${best.unit ? `<span class="hint num">${fmt(best.unit.v)} por ${best.unit.u === 'c/u' ? 'unidad' : best.unit.u}</span>` : ''}
+      <span class="hint">En ${of.length || 1} tienda${(of.length || 1) === 1 ? '' : 's'}${ch != null ? ` · <span class="chg ${ch > 0.05 ? 'up' : ch < -0.05 ? 'down' : 'flat'}">${pct(ch)} 30 días</span>` : ''}</span>
+      <div class="pills">${of.map(q => `<span class="pill${q === best ? ' win' : ''}"><i class="dot" style="background:${color(q.store)}"></i>${NOMBRES[q.store]} <b class="num">${precioUno(q)}</b></span>`).join('')}</div>
+      <button class="btn small ghost" data-k="${esc(best.key)}">Ver ficha</button>
+    </div>`;
+  };
+  $('duo').innerHTML = tarjeta(ps[0], 0) + tarjeta(ps[1], 1);
+  if (ps.length < 2) { $('duoRes').innerHTML = ''; return; }
+  // Veredicto: por unidad de medida (L, kg o c/u) si ambos la tienen y es la misma; si no, por precio.
+  const mejorDe = p => [...ofertas(p).values()].sort((a, b) => porUno(a) - porUno(b))[0] || p;
+  const [a, b] = ps.map(mejorDe);
+  const mismaUnidad = a.unit && b.unit && a.unit.u === b.unit.u;
+  const va = mismaUnidad ? a.unit.v : a.price, vb = mismaUnidad ? b.unit.v : b.price;
+  const d = Math.abs(va / vb - 1) * 100;
+  const gan = va < vb ? ps[0] : ps[1];
+  $('duoRes').innerHTML = `<p class="vs-frase">${d < 0.5 ? 'Cuestan lo mismo' : `<b>${esc(gan.n)}</b> es <b class="num">${d.toLocaleString('es-CL', { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%</b> más barato`}${mismaUnidad ? ` por ${a.unit.u === 'c/u' ? 'unidad' : a.unit.u}` : ' (precio del envase: no tienen la misma unidad de medida)'}, comparando el mejor precio de cada uno.</p>`;
 }
 function filaPar(x, A, B) {
   const d = (x.r - 1) * 100; // + = A más caro
@@ -911,8 +1131,10 @@ function abrir(key) {
       ${p.h.slice().reverse().map(r => `<tr><td>${fDiaA(r[0])}</td><td class="num">${fmt(r[1])}</td><td class="num">${r[2] ? fmt(r[2]) : '—'}</td></tr>`).join('')}
       </tbody></table></details>
     <div class="actions">
+      <button class="btn" data-add="${esc(key)}">${canasta.some(x => x.k === key) ? '✓ En tu canasta (+1)' : '🛒 Agregar a mi canasta'}</button>
+      <button class="btn ghost" data-duo="${esc(key)}">⇄ Comparar con otro</button>
       <button class="btn ghost" id="dFav" aria-pressed="${fav}">${fav ? '★ Siguiendo' : '☆ Seguir'}</button>
-      <a class="btn" href="${esc(p.u)}" target="_blank" rel="noopener noreferrer">Ver en ${NOMBRES[p.store]} ↗</a>
+      <a class="btn ghost" href="${esc(p.u)}" target="_blank" rel="noopener noreferrer">Ver en ${NOMBRES[p.store]} ↗</a>
     </div>`;
   const dlg = $('dlg');
   if (!dlg.open) dlg.showModal();
@@ -950,8 +1172,39 @@ function ver(v) {
 }
 
 document.addEventListener('click', ev => {
-  const it = ev.target.closest('.item[data-k]');
+  const it = ev.target.closest('.item[data-k], button[data-k]');
   if (it) { abrir(it.dataset.k); return; }
+  // Comparar: desplegar un producto, canasta y producto a producto.
+  const gh = ev.target.closest('[data-g]');
+  if (gh) { const k = gh.dataset.g; ABIERTOS.has(k) ? ABIERTOS.delete(k) : ABIERTOS.add(k); renderComparar(); return; }
+  const add = ev.target.closest('[data-add]');
+  if (add) {
+    agregarCanasta(add.dataset.add);
+    $('kq').value = ''; $('kPick').innerHTML = '';
+    if ($('dlg').open) { add.textContent = '✓ En tu canasta (+1)'; }
+    if (!$('view-comparar').hidden) renderCanasta();
+    return;
+  }
+  const du = ev.target.closest('[data-duo]');
+  if (du) {
+    ponerEnDuo(du.dataset.duo);
+    $('pq').value = ''; $('pPick').innerHTML = '';
+    if ($('dlg').open) $('dlg').close();
+    if ($('view-comparar').hidden) ver('comparar'); else renderDuo();
+    $('panelVs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  const dd = ev.target.closest('[data-duodel]');
+  if (dd) { duo = duo.filter(k => k !== dd.dataset.duodel); store.set('duo', duo); renderDuo(); return; }
+  const km = ev.target.closest('[data-kmas], [data-kmenos], [data-kdel]');
+  if (km) {
+    const k = km.dataset.kmas || km.dataset.kmenos || km.dataset.kdel;
+    const x = canasta.find(c => c.k === k);
+    if (x) { if (km.dataset.kmas) x.n++; else if (km.dataset.kmenos) x.n--; else x.n = 0; }
+    canasta = canasta.filter(c => c.n > 0); guardarCanasta(); renderCanasta();
+    return;
+  }
+  if (ev.target.id === 'kVaciar') { if (confirm('¿Vaciar la canasta?')) { canasta = []; guardarCanasta(); renderCanasta(); } return; }
   const tab = ev.target.closest('.seg button');
   if (tab) { ver(tab.dataset.view); return; }
   const r = ev.target.closest('[data-r]');
@@ -992,6 +1245,8 @@ $('cat').addEventListener('change', () => { shown = 60; buscar(); });
 $('sort').addEventListener('change', () => { shown = 60; buscar(); });
 $('moreBtn').addEventListener('click', () => { shown += 60; buscar(); });
 for (const id of ['cCat', 'cA', 'cB']) $(id).addEventListener('change', () => { cShown = 30; vShown = 20; renderComparar(); });
+let tk; $('kq').addEventListener('input', () => { clearTimeout(tk); tk = setTimeout(() => { grupos(); $('kPick').innerHTML = pickerHtml(elegir($('kq').value), 'add', '+ Agregar'); }, 150); });
+let tp; $('pq').addEventListener('input', () => { clearTimeout(tp); tp = setTimeout(() => { grupos(); $('pPick').innerHTML = pickerHtml(elegir($('pq').value), 'duo', duo.length < 2 ? '⇄ Elegir' : '⇄ Cambiar B'); }, 150); });
 $('gMore').addEventListener('click', () => { cShown += 30; renderComparar(); });
 $('vsMore').addEventListener('click', () => { vShown += 20; renderComparar(); });
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!$('view-tendencia').hidden) renderIndice(); }, 200); });
