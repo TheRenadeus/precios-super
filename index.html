@@ -616,8 +616,9 @@ async function cargar() {
 // ---------- De dónde salen los datos ----------
 // Con servidor, la app le pide solo lo que va a mostrar y el teléfono no descarga los precios de todas las tiendas.
 // Sin servidor, o si no responde, descarga los archivos de GitHub y calcula aquí con las mismas vistas (vistas.js).
-// La dirección se guarda en este dispositivo: abrir la app con ?servidor=https://… la cambia y ?servidor= la borra.
-const SERVIDOR_POR_DEFECTO = ''; // cuando la VM tenga dirección pública (Tailscale), va aquí
+// Por defecto usa la VM (publicada con Tailscale Funnel). En cada dispositivo, abrir la app con ?servidor=https://…
+// la cambia y ?servidor= la apaga (usa siempre los archivos de GitHub).
+const SERVIDOR_POR_DEFECTO = 'https://precios-super.tail7efd1e.ts.net';
 const SERVIDOR = (() => {
   const pedido = new URLSearchParams(location.search).get('servidor');
   if (pedido != null) {

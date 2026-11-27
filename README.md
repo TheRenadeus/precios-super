@@ -103,6 +103,7 @@ Con servidor, la app le pide solo lo que va a mostrar (una búsqueda, una ficha,
 - `vistas.js`: lo que muestra cada pantalla. Lo usan la app y el servidor, así que el resultado es el mismo venga de donde venga.
 - `servidor/servidor.mjs`: el servidor, sin dependencias (Node 18 o superior). `servidor/instalar.sh` lo deja funcionando en una VM Ubuntu.
 
-Para conectar la app, ábrela una vez con `?servidor=https://dirección-del-servidor` (queda guardado en ese dispositivo;
-`?servidor=` lo borra). Si el servidor no responde, la app sigue sola con los archivos de GitHub y lo avisa al pie de la página.
+La app usa por defecto la VM, publicada con Tailscale Funnel en `https://precios-super.tail7efd1e.ts.net`
+(`tailscale funnel --bg 8787` en la VM). Solo responde mientras la VM está encendida. Para usar otro servidor en un dispositivo,
+abre la app una vez con `?servidor=https://dirección-del-servidor` (queda guardado ahí); `?servidor=` lo apaga en ese dispositivo. Si el servidor no responde, la app sigue sola con los archivos de GitHub y lo avisa al pie de la página.
 El servidor debe aceptar el sitio de la app en la variable `ORIGENES`.
