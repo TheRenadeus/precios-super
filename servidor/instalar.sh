@@ -50,6 +50,8 @@ Type=oneshot
 User=$USUARIO
 WorkingDirectory=$DIR
 ExecStart=/usr/bin/git pull --ff-only -q
+# Copia de los precios de cada día en ~/historial (no se borra nada; ver servidor/archivar.sh).
+ExecStartPost=/bin/sh servidor/archivar.sh
 # Los datos se recargan solos; un reinicio toma también los cambios de código del servidor.
 ExecStartPost=+/bin/systemctl try-restart precios-servidor.service
 EOF
