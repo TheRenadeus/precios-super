@@ -578,7 +578,7 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
     </div>
   </section>
 
-  <p class="foot">Precios publicados en internet por cada supermercado, leídos una vez al día; los de Líder, Tottus y Super10 los aporta la gente. Pueden variar en tienda o según tu comuna.</p>
+  <p class="foot">Precios publicados en internet por cada supermercado, leídos una vez al día; los de Líder y Super10 los aporta la gente. Pueden variar en tienda o según tu comuna.</p>
   <p class="foot" id="modo" hidden></p>
 </div>
 
@@ -603,7 +603,7 @@ const TIENDAS = FERRE ? ['sodimac', 'easy'] : ['jumbo', 'santaisabel', 'tottus',
 // Con archivo data/<tienda>.json. Líder y Super10 solo tienen precios aportados por la gente (data/aportes.json).
 const LEIDAS = FERRE ? ['sodimac', 'easy'] : ['jumbo', 'santaisabel', 'tottus', 'unimarc', 'acuenta', 'alvi', 'centralmayorista'];
 // Sin lectura automática diaria: no se avisa que "no hubo lectura nueva hoy".
-const SIN_LECTURA = new Set(['tottus', 'lider', 'super10']);
+const SIN_LECTURA = new Set(['lider', 'super10']);
 const REPO = 'https://github.com/TheRenadeus/precios-super';
 // Regiones de Chile: código (el mismo de scripts/aporte.mjs), nombre y su capital, para elegir con el GPS.
 const REGIONES = [['AP', 'Arica y Parinacota', -18.48, -70.31], ['TA', 'Tarapacá', -20.21, -70.15], ['AN', 'Antofagasta', -23.65, -70.4],
@@ -829,7 +829,7 @@ async function renderIndice() {
   const res = INDICES[rango] || (INDICES[rango] = await pedir('indice', { d: rango }));
   if (!res || rango !== RANGO) return;
   const { dates, out } = res;
-  // Solo las tiendas con productos para comparar en el período (Tottus, sin lectura nueva, quedaba como una línea plana en 100).
+  // Solo las tiendas con productos para comparar en el período (una tienda sin lecturas quedaba como una línea plana en 100).
   const conDatos = TIENDAS.filter(s => out[s].n > 0 && out[s].vals.some(v => v != null));
   const sinDatos = TIENDAS.filter(s => LEIDAS.includes(s) && !conDatos.includes(s));
   const series = conDatos.map(s => ({ name: NOMBRES[s], short: NOMBRES[s], color: color(s), values: out[s].vals }));
@@ -918,7 +918,7 @@ function renderStores() {
   }).join('');
   $('stores').innerHTML = `<table class="t tiendas"><caption class="sr">Estado de cada ${FERRE ? 'ferretería' : 'supermercado'}</caption>
     <thead><tr><th scope="col">${FERRE ? 'Ferretería' : 'Supermercado'}</th><th scope="col" class="n">Productos</th><th scope="col" class="n">Precios del</th><th scope="col">Estado</th></tr></thead>
-    <tbody>${filas}</tbody></table>` + (FERRE ? `<p class="hint tnota">Sodimac se lee por categoría (su robots.txt no permite leer su búsqueda). Easy: precio normal, oferta y precio con tarjeta Cencosud. No incluidas: Imperial (bloquea a los programas que leen precios), MTS (sin precios en línea) y Construmart (su robots.txt no permite leer su búsqueda).</p>` : `<p class="hint tnota">aCuenta: precios del local El Monte. Central Mayorista: local Macul, precios para comerciantes socios, por caja o pack (el precio por unidad divide por la cantidad). Alvi: precio por unidad; en la ficha, los precios por cantidad. Líder, Tottus y Super10 no se pueden leer automáticamente (Líder lo prohíbe en su robots.txt, Tottus bloquea a los programas que se identifican como robot y Super10 no tiene tienda en línea): sus precios los aporta la gente, con el local y la fecha. <a href="${aportarUrl()}" target="_blank" rel="noopener noreferrer">Aportar un precio</a> (se necesita una cuenta gratis de GitHub).</p>`);
+    <tbody>${filas}</tbody></table>` + (FERRE ? `<p class="hint tnota">Sodimac se lee por categoría (su robots.txt no permite leer su búsqueda). Easy: precio normal, oferta y precio con tarjeta Cencosud. No incluidas: Imperial (bloquea a los programas que leen precios), MTS (sin precios en línea) y Construmart (su robots.txt no permite leer su búsqueda).</p>` : `<p class="hint tnota">aCuenta: precios del local El Monte. Central Mayorista: local Macul, precios para comerciantes socios, por caja o pack (el precio por unidad divide por la cantidad). Alvi: precio por unidad; en la ficha, los precios por cantidad. Tottus se lee desde un computador en Chile (no deja leer a los servidores de GitHub). Líder y Super10 no se pueden leer automáticamente (Líder lo prohíbe en su robots.txt y Super10 no tiene tienda en línea): sus precios los aporta la gente, con el local y la fecha; en Tottus también se pueden aportar. <a href="${aportarUrl()}" target="_blank" rel="noopener noreferrer">Aportar un precio</a> (se necesita una cuenta gratis de GitHub).</p>`);
   const atrasadas = TIENDAS.filter(s => !SIN_LECTURA.has(s) && ESTADO[s] && ESTADO[s].fecha && (ESTADO[s].ok === false || ESTADO[s].fecha < HOY));
   $('banner').innerHTML = atrasadas.length ? `<div class="banner">${atrasadas.map(s => `<b>${NOMBRES[s]}</b> muestra precios del ${fDia(ESTADO[s].fecha)}`).join(' · ')}. No hubo lectura nueva hoy.</div>` : '';
 }

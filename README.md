@@ -48,7 +48,8 @@ Para ejecutarla a mano: **Actions → Actualizar precios → Run workflow**.
 
 ### Tottus: desde tu computador
 
-Tottus bloquea a los servidores de GitHub, pero responde a una conexión normal de casa.
+Tottus bloquea a los servidores de GitHub, pero responde a una conexión normal de casa con el mismo agente honesto
+del bot (probado el 27-nov: 4631 productos). Si se lee varias veces el mismo día empieza a responder 403: una vez al día basta.
 Necesitas [Node.js 22 o superior](https://nodejs.org) y git con este repositorio clonado:
 
 ```bash

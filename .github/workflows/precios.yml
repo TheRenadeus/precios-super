@@ -44,7 +44,7 @@ jobs:
             echo "listo=1" >> "$GITHUB_OUTPUT"
           fi
 
-      # Tottus bloquea a los programas que se identifican como robot: queda fuera (ver README).
+      # Tottus responde 403 a los servidores de GitHub: se lee desde un computador (scripts/precios-local.mjs, ver README).
       # Easy responde 403 a los servidores de GitHub (desde un computador sí responde): no va aquí.
       # El nombre de las tiendas viene por variable de entorno, nunca pegado en el comando.
       - name: Leer precios de supermercados y ferreterías
