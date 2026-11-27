@@ -13,7 +13,45 @@ function resumen(p, { h = false } = {}) {
   if (h) o.h = p.h;
   return o;
 }
-const grupoResumido = g => ({ p: resumen(g.p), miembros: g.miembros.map(m => resumen(m)), min: g.min });
+// Avisos de Tendencia desde la fecha 'desde': productos nuevos y descuentos que empezaron.
+// Nuevo = aparece por primera vez en las búsquedas de la app (no cuenta el primer día de cada tienda ni los días en que
+// la lectura se amplió, por ejemplo al sumar términos o una tienda que vuelve a leerse: ahí casi todo sería "nuevo").
+// Descuento = el precio pasó a tener precio normal tachado y quedó más bajo que antes de la oferta
+// (algunas "ofertas" quedan más caras que el precio anterior: esas no se avisan).
+function novedades(desde, max = 10) {
+  const leidos = ALL.filter(p => !p.ap);
+  const dcto = p => p.normal ? 1 - p.price / p.normal : 0; // entre los nuevos del mismo día, primero los que llegan con oferta
+  const inicio = {}, primeros = {}, hasta = {};
+  for (const p of leidos) {
+    const d = p.h[0][0], s = p.store;
+    if (!inicio[s] || d < inicio[s]) inicio[s] = d;
+    (primeros[s] = primeros[s] || {})[d] = (primeros[s][d] || 0) + 1;
+  }
+  // Productos conocidos por tienda hasta cada día, para medir qué parte del día fue "nueva".
+  const ampliado = (s, d) => {
+    const k = s + d;
+    if (!(k in hasta)) { let n = 0; for (const [f, c] of Object.entries(primeros[s])) if (f <= d) n += c; hasta[k] = primeros[s][d] / n > 0.25; }
+    return hasta[k];
+  };
+  const nuevos = leidos.filter(p => p.fresh && p.h[0][0] >= desde && p.h[0][0] > inicio[p.store] && !ampliado(p.store, p.h[0][0]))
+    .sort((a, b) => b.h[0][0].localeCompare(a.h[0][0]) || dcto(b) - dcto(a) || a.n.localeCompare(b.n, 'es'));
+  const descuentos = [];
+  for (const p of leidos) {
+    if (!p.fresh || p.normal == null) continue;
+    let i = p.h.length - 1;
+    while (i > 0 && p.h[i - 1][2] != null) i--;
+    if (i === 0 || p.h[i][0] < desde) continue; // sin precio sin oferta antes, o la oferta empezó antes del período
+    const antes = p.h[i - 1][1];
+    if (!(p.price < antes)) continue;
+    descuentos.push({ p, antes, desdeOf: p.h[i][0], baja: (1 - p.price / antes) * 100 });
+  }
+  descuentos.sort((a, b) => b.baja - a.baja);
+  return {
+    nuevos: { n: nuevos.length, lista: nuevos.slice(0, max).map(p => ({ ...resumen(p), f: p.h[0][0] })) },
+    descuentos: { n: descuentos.length, lista: descuentos.slice(0, max).map(o => ({ ...resumen(o.p), antes: o.antes, f: o.desdeOf, baja: o.baja })) },
+  };
+}
+const grupoResumido = g =>({ p: resumen(g.p), miembros: g.miembros.map(m => resumen(m)), min: g.min });
 
 const VISTAS = {
   // Portada: estado de cada tienda, categorías, mayores alzas y bajas de la semana.
@@ -40,7 +78,7 @@ const VISTAS = {
     const mov = o => ({ ...resumen(o.p), ch: o.ch, antes: o.antes });
     return { hoy: HOY, dias: DATES.length, estado: ESTADO, conteos, categorias,
       caracteristicas: Object.entries(CARACTERISTICAS).map(([k, [nombre]]) => [k, nombre]),
-      movDesde, ups: ups.map(mov), downs: downs.map(mov) };
+      movDesde, ups: ups.map(mov), downs: downs.map(mov), ...novedades(movDesde) };
   },
 
   // Índice de precios de cada tienda en los últimos d días (0 = todo).

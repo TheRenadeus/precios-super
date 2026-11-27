@@ -448,6 +448,16 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
       <p class="hint" id="downHint">Últimos 7 días</p>
       <div id="downs"></div>
     </div>
+    <div class="panel">
+      <h2>Productos nuevos</h2>
+      <p class="hint" id="nuevosHint">Últimos 7 días</p>
+      <div id="nuevos"></div>
+    </div>
+    <div class="panel">
+      <h2>Nuevos descuentos</h2>
+      <p class="hint" id="dctoHint">Últimos 7 días</p>
+      <div id="dctos"></div>
+    </div>
     <div class="panel full">
       <h2>Supermercados</h2>
       <div id="stores"></div>
@@ -894,6 +904,30 @@ function renderMovers() {
       <td class="n"><span class="chg ${p.ch > 0 ? 'up' : 'down'}">${pctN(p.ch)}</span></td></tr>`).join('')}</tbody></table>`;
   $('ups').innerHTML = tabla(ups, 'Mayores alzas');
   $('downs').innerHTML = tabla(downs, 'Mayores bajas');
+  renderNovedades(desde);
+}
+
+// Avisos: productos que aparecen por primera vez y ofertas que empezaron (solo las que bajan el precio de verdad).
+function renderNovedades(desde) {
+  const { nuevos, descuentos } = INICIO;
+  if (!nuevos || !descuentos) return; // servidor con una versión anterior de vistas.js
+  const prod = p => `<th scope="row"><span class="prod">${p.i ? `<img src="${esc(p.i)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-ph="${p.store}">` : ph(p.store)}
+        <span><span class="name">${esc(p.n)}</span><span class="meta"><i class="dot" style="background:${color(p.store)}"></i>${NOMBRES[p.store]}${p.m ? ' · ' + esc(p.m) : ''}</span></span></span></th>`;
+  const mas = (o, que) => o.n > o.lista.length ? `<p class="hint tnota">Y ${(o.n - o.lista.length).toLocaleString('es-CL')} ${que} más.</p>` : '';
+  const vacio = INICIO.dias < 2 ? 'Aparecen cuando haya al menos dos días de datos.' : null;
+  $('nuevosHint').textContent = `${desde} · ${nuevos.n.toLocaleString('es-CL')} en total. Aparecen por primera vez en las búsquedas de la app.`;
+  $('nuevos').innerHTML = !nuevos.n ? `<p class="empty">${vacio || 'Sin productos nuevos en este período.'}</p>` : `<table class="t mov"><caption class="sr">Productos nuevos, ${desde.toLowerCase()}</caption>
+    <thead><tr><th scope="col">Producto</th><th scope="col" class="n">Precio</th><th scope="col" class="n">Desde</th></tr></thead>
+    <tbody>${nuevos.lista.map(p => `<tr data-k="${esc(p.key)}" tabindex="0">${prod(p)}
+      <td class="n"><b>${fmt(p.price)}</b>${p.normal ? `<div class="strike">${fmt(p.normal)}</div>` : ''}</td>
+      <td class="n antes">${fDia(p.f)}</td></tr>`).join('')}</tbody></table>${mas(nuevos, nuevos.n - nuevos.lista.length === 1 ? 'producto' : 'productos')}`;
+  $('dctoHint').textContent = `${desde} · ${descuentos.n.toLocaleString('es-CL')} en total. Ofertas que dejan el precio más bajo que antes.`;
+  $('dctos').innerHTML = !descuentos.n ? `<p class="empty">${vacio || 'Sin descuentos nuevos en este período.'}</p>` : `<table class="t mov"><caption class="sr">Nuevos descuentos, ${desde.toLowerCase()}</caption>
+    <thead><tr><th scope="col">Producto</th><th scope="col" class="n">Antes</th><th scope="col" class="n">Ahora</th><th scope="col" class="n">Baja (%)</th></tr></thead>
+    <tbody>${descuentos.lista.map(p => `<tr data-k="${esc(p.key)}" tabindex="0">${prod(p)}
+      <td class="n antes">${fmt(p.antes)}</td>
+      <td class="n"><b>${fmt(p.price)}</b></td>
+      <td class="n"><span class="chg down">${pctN(-p.baja)}</span></td></tr>`).join('')}</tbody></table>${mas(descuentos, descuentos.n - descuentos.lista.length === 1 ? 'descuento' : 'descuentos')}`;
 }
 
 function renderStores() {
