@@ -2,7 +2,7 @@
 // y el teléfono no descarga los datos de todas las tiendas.
 //
 // Lee los mismos archivos data/<tienda>.json que la versión de GitHub y usa la misma lógica (core.js), así que
-// los resultados son iguales. Sin dependencias: solo Node 22 o superior.
+// los resultados son iguales. Sin dependencias: Node 18 o superior.
 //
 // Uso: node servidor/servidor.mjs            (puerto 8787; PUERTO=xxxx para otro)
 //      ORIGENES="https://therenadeus.github.io,http://localhost:4180" para los sitios que pueden consultarlo.
@@ -26,18 +26,20 @@ const RUBROS = {
 };
 const REGIONES = new Set(['AP', 'TA', 'AN', 'AT', 'CO', 'VA', 'RM', 'LI', 'ML', 'NB', 'BI', 'AR', 'LR', 'LL', 'AI', 'MA']);
 
-// ---------- Contextos: uno por rubro y zona, con core.js y los datos cargados ----------
-let CORE = '', VERSION = '', contextos = new Map();
+// ---------- Contextos: uno por rubro y zona, con core.js, vistas.js y los datos cargados ----------
+let CODIGO = '', VERSION = '', contextos = new Map();
 const leerJson = f => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return null; } };
+const CODIGOS = ['core.js', 'vistas.js', 'categorias.json'].map(f => join(RAIZ, f));
 function versionDatos() {
-  // Cambia cuando cambia cualquier archivo de datos o core.js: entonces se recargan los contextos.
-  const archivos = [join(RAIZ, 'core.js'), ...readdirSync(DATA).filter(f => f.endsWith('.json')).map(f => join(DATA, f))];
+  // Cambia cuando cambia cualquier archivo de datos, el código compartido o las categorías: entonces se recargan los contextos.
+  const archivos = [...CODIGOS, ...readdirSync(DATA).filter(f => f.endsWith('.json')).map(f => join(DATA, f))];
   return archivos.map(f => existsSync(f) ? statSync(f).mtimeMs : 0).join('|');
 }
 function revisarDatos() {
   const v = versionDatos();
   if (v === VERSION) return;
-  VERSION = v; CORE = readFileSync(join(RAIZ, 'core.js'), 'utf8'); contextos = new Map();
+  VERSION = v; contextos = new Map();
+  CODIGO = ['core.js', 'vistas.js'].map(f => readFileSync(join(RAIZ, f), 'utf8')).join(';\n');
   console.log(new Date().toISOString(), 'datos (re)cargados');
 }
 function contexto(rubro, zona) {
@@ -51,149 +53,25 @@ function contexto(rubro, zona) {
   const ctx = vm.createContext({ console, __dbs: dbs, __aportes: aportes });
   vm.runInContext(`const TIENDAS = ${JSON.stringify(R.tiendas)}; const LEIDAS = ${JSON.stringify(R.leidas)};
     const NOMBRES = ${JSON.stringify(NOMBRES)}; const ALL = []; const BYKEY = new Map(); const ESTADO = {};
-    let HOY = ''; const DATES = []; const ZONA = ${JSON.stringify(zona || null)};
+    let HOY = ''; const DATES = []; const ZONA = ${JSON.stringify(zona || null)}; const CATS = ${JSON.stringify(cats)};
     const REPO = 'https://github.com/TheRenadeus/precios-super'; const APORTE_DIAS = 14;
-    ${CORE}
+    ${CODIGO}
     cargarDatos(__dbs, __aportes); grupos();
-    globalThis.api = { ALL, BYKEY, ESTADO, DATES, get HOY() { return HOY; }, TIENDAS, LEIDAS, GRUPO_DE, grupos, equivalentes, changeSince, porUno,
-      esPaquete, gana, enCat, indice, elegir, ofertas, norm, terminosCategoria, enTerminos, tieneCaracteristica, descuento, CARACTERISTICAS };`, ctx, { timeout: 60000 });
-  const c = ctx.api;
-  // Categorías con subcategorías, solo las que tienen productos.
-  const hay = new Set(c.ALL.flatMap(p => p.t));
-  c.CAT = cats;
-  c.categorias = Object.entries(cats).map(([cat, subs]) => [cat, Object.entries(subs).filter(([, ts]) => ts.some(t => hay.has(t))).map(([sub]) => sub)])
-    .filter(([, subs]) => subs.length);
-  c.caracteristicas = Object.entries(c.CARACTERISTICAS).map(([k, [nombre]]) => [k, nombre]);
-  c.indices = {};
+    globalThis.__vistas = VISTAS;`, ctx, { timeout: 60000 });
+  const c = ctx.__vistas;
   contextos.set(k, c);
   return c;
-}
-
-// ---------- Resumen de un producto para la app ----------
-function resumen(c, p, { h = false } = {}) {
-  const g = c.GRUPO_DE.get(p.key);
-  const o = { key: p.key, store: p.store, id: p.id, n: p.n, m: p.m, u: p.u, i: p.i, t: p.t, v: p.v, out: p.out, price: p.price, normal: p.normal,
-    card: p.card, fresh: p.fresh, k: p.k, steps: p.steps, size: p.size, unit: p.unit, ap: p.ap, c30: c.changeSince(p, 30) };
-  if (g) o.grp = { n: g.miembros.length, min: g.min, gana: c.gana(p, g), primero: { store: g.miembros[0].store, uno: c.porUno(g.miembros[0]), paquete: !!c.esPaquete(g.miembros[0]) } };
-  if (h) o.h = p.h;
-  return o;
-}
-
-// ---------- Vistas ----------
-function inicio(c) {
-  const DAYS = 7;
-  const movs = c.ALL.filter(p => p.fresh).map(p => ({ p, ch: c.changeSince(p, DAYS) })).filter(o => o.ch != null && Math.abs(o.ch) >= 0.5);
-  const ups = movs.filter(o => o.ch > 0).sort((a, b) => b.ch - a.ch).slice(0, 8);
-  const downs = movs.filter(o => o.ch < 0).sort((a, b) => a.ch - b.ch).slice(0, 8);
-  const conteos = {};
-  for (const s of c.TIENDAS) {
-    const ap = c.ALL.filter(p => p.store === s && p.ap);
-    conteos[s] = { n: c.ALL.filter(p => p.store === s && p.fresh && !p.ap).length, ap: ap.length, apUlt: ap.reduce((m, p) => p.v > m ? p.v : m, '') };
-  }
-  const indices = {};
-  if (c.DATES.length >= 2) for (const d of [30, 90, 365, 0]) indices[d] = c.indices[d] || (c.indices[d] = c.indice(d));
-  return { hoy: c.HOY, dias: c.DATES.length, estado: c.ESTADO, conteos, categorias: c.categorias, caracteristicas: c.caracteristicas, indices,
-    ups: ups.map(o => ({ ...resumen(c, o.p), ch: o.ch })), downs: downs.map(o => ({ ...resumen(c, o.p), ch: o.ch })) };
-}
-
-function buscar(c, q) {
-  const texto = c.norm(q.q || '');
-  const words = texto ? texto.split(' ') : [];
-  const sel = new Set((q.tiendas || c.TIENDAS.join(',')).split(',').filter(s => c.TIENDAS.includes(s)));
-  const cat = q.cat || '', sort = q.orden || 'rel';
-  const ts = c.terminosCategoria(c.CAT, cat, q.sub || '');
-  const car = (q.car || '').split(',').filter(k => c.CARACTERISTICAS[k]);
-  const f = { oferta: q.oferta === '1', baja: q.baja === '1', varias: q.varias === '1', hoy: q.hoy === '1', marca: q.marca || '', uni: q.uni || '',
-    min: q.min ? +q.min : null, max: q.max ? +q.max : null, desc: +q.desc || 0, tarjeta: q.tarjeta === '1', disp: q.disp === '1' };
-  const nf = [f.oferta, f.baja, f.varias, f.hoy, f.marca, f.uni, f.min != null, f.max != null, f.desc, f.tarjeta, f.disp, car.length].filter(Boolean).length;
-  const pasa = p => (!f.oferta || p.normal) && (!f.baja || (c.changeSince(p, 30) ?? 0) < -0.5)
-    && (!f.varias || (c.GRUPO_DE.get(p.key)?.miembros.length || 0) > 1) && (!f.hoy || p.fresh)
-    && (!f.uni || (f.uni === 'u' ? !p.unit || p.unit.u === 'c/u' : p.unit && p.unit.u === f.uni))
-    && (f.min == null || p.price >= f.min) && (f.max == null || p.price <= f.max)
-    && (!f.desc || c.descuento(p) >= f.desc) && (!f.tarjeta || p.card) && (!f.disp || !p.out) && car.every(k => c.tieneCaracteristica(p, k));
-  let r = c.ALL.filter(p => sel.has(p.store) && c.enTerminos(p, ts) && words.every(w => p.search.includes(w)) && pasa(p));
-  // Marcas de lo que cumple los demás filtros (la elegida se aplica después).
-  const por = new Map();
-  for (const p of r) {
-    const k = c.norm(p.m); if (!k) continue;
-    if (!por.has(k)) por.set(k, { n: 0, grafias: new Map() });
-    const o = por.get(k); o.n++; o.grafias.set(p.m, (o.grafias.get(p.m) || 0) + 1);
-  }
-  const marcas = [...por].map(([k, o]) => [k, [...o.grafias].sort((a, b) => b[1] - a[1])[0][0], o.n])
-    .sort((a, b) => a[1].localeCompare(b[1], 'es', { sensitivity: 'base' }));
-  if (f.marca) r = r.filter(p => c.norm(p.m) === f.marca);
-  // El mismo producto en varias tiendas va en una sola fila: la más barata (por unidad) entre las tiendas marcadas.
-  const filaDe = new Map(), unicos = [];
-  for (const p of r) {
-    const g = c.GRUPO_DE.get(p.key);
-    if (!g) { unicos.push(p); continue; }
-    const i = filaDe.get(g);
-    if (i === undefined) { filaDe.set(g, unicos.length); unicos.push(p); }
-    else if (c.porUno(p) < c.porUno(unicos[i])) unicos[i] = p;
-  }
-  r = unicos;
-  const score = p => (p.fresh ? 0 : 1000) + (texto && p.t.some(t => c.norm(t) === texto || texto.startsWith(c.norm(t))) ? 0 : 2) + (texto && p.search.startsWith(texto) ? 0 : 1);
-  const ch = new Map(); const c30 = p => { if (!ch.has(p.key)) ch.set(p.key, c.changeSince(p, 30)); return ch.get(p.key); };
-  const orden = {
-    rel: (a, b) => score(a) - score(b) || a.price - b.price,
-    price: (a, b) => a.price - b.price,
-    unit: (a, b) => (a.unit ? a.unit.v : Infinity) - (b.unit ? b.unit.v : Infinity),
-    disc: (a, b) => (b.normal ? 1 - b.price / b.normal : 0) - (a.normal ? 1 - a.price / a.normal : 0),
-    up30: (a, b) => (c30(b) ?? -1e9) - (c30(a) ?? -1e9),
-    down30: (a, b) => (c30(a) ?? 1e9) - (c30(b) ?? 1e9),
-  };
-  const portada = !texto && !ts && sort === 'rel' && !nf;
-  r.sort(portada ? (a, b) => (b.fresh - a.fresh) || orden.disc(a, b) : (orden[sort] || orden.rel));
-  const desde = Math.max(0, +q.desde || 0), n = Math.min(200, Math.max(1, +q.n || 60));
-  return { total: r.length, portada, marcas, filas: r.slice(desde, desde + n).map(p => resumen(c, p)) };
-}
-
-function producto(c, k) {
-  const p = c.BYKEY.get(k);
-  if (!p) return null;
-  return { p: resumen(c, p, { h: true }), eq: c.equivalentes(p).map(e => ({ q: resumen(c, e.q), exact: e.exact })) };
-}
-
-function comparar(c, q) {
-  const ts = c.terminosCategoria(c.CAT, q.cat || '', q.sub || '');
-  const G = c.grupos().filter(g => !ts || g.t.some(t => ts.has(t)));
-  const MIN_T = c.TIENDAS.length > 3 ? 3 : 2;
-  const G3 = G.filter(g => g.miembros.length >= MIN_T);
-  const mediana = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
-  const st = c.TIENDAS.map(s => {
-    let wins = 0; const difs = [];
-    for (const g of G3) { const m = g.miembros.find(x => x.store === s); if (!m) continue; if (c.gana(m, g)) wins++; difs.push(c.porUno(m) / g.min - 1); }
-    return { s, n: difs.length, wins, prom: difs.length ? mediana(difs) * 100 : null };
-  });
-  const MIN_N = Math.min(15, Math.max(4, Math.round(G3.length * 0.2)));
-  const rk = st.filter(x => x.n >= MIN_N).sort((a, b) => a.prom - b.prom);
-  const fuera = st.filter(x => x.n < MIN_N).map(x => x.s);
-  const atrasadas = c.TIENDAS.filter(s => c.ESTADO[s] && c.ESTADO[s].fecha && c.ESTADO[s].fecha < c.HOY);
-  // Cara a cara
-  const A = q.a, B = q.b;
-  let vs = null, pares = [];
-  if (A && B && A !== B) {
-    pares = G.map(g => ({ g, a: g.miembros.find(m => m.store === A), b: g.miembros.find(m => m.store === B) }))
-      .filter(x => x.a && x.b).map(x => ({ ...x, r: c.porUno(x.a) / c.porUno(x.b) }));
-    if (pares.length) {
-      const aGana = pares.filter(x => x.r < 0.995).length, bGana = pares.filter(x => x.r > 1.005).length;
-      vs = { n: pares.length, aGana, bGana, iguales: pares.length - aGana - bGana, geo: Math.exp(pares.reduce((s, x) => s + Math.log(x.r), 0) / pares.length) };
-      pares.sort((x, y) => Math.abs(Math.log(y.r)) - Math.abs(Math.log(x.r)));
-    }
-  }
-  const nv = Math.min(500, +q.nv || 20), ng = Math.min(500, +q.ng || 30);
-  const lista = G.slice().sort((x, y) => y.miembros.length - x.miembros.length || (c.porUno(y.miembros.at(-1)) / y.min) - (c.porUno(x.miembros.at(-1)) / x.min));
-  const grupo = g => ({ p: resumen(c, g.p), miembros: g.miembros.map(m => resumen(c, m)), min: g.min });
-  return { g3: G3.length, minT: MIN_T, rk, fuera, atrasadas, vs,
-    pares: pares.slice(0, nv).map(x => ({ g: grupo(x.g), a: resumen(c, x.a), b: resumen(c, x.b), r: x.r })), paresTotal: pares.length,
-    grupos: lista.slice(0, ng).map(grupo), gruposTotal: lista.length };
 }
 
 // ---------- HTTP ----------
 function responder(req, res, codigo, cuerpo) {
   const origen = req.headers.origin;
   const h = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };
-  if (origen && ORIGENES.includes(origen)) { h['Access-Control-Allow-Origin'] = origen; h['Vary'] = 'Origin'; }
+  if (origen && ORIGENES.includes(origen)) {
+    h['Access-Control-Allow-Origin'] = origen; h['Vary'] = 'Origin';
+    // Chrome pregunta antes de que una página de internet consulte un servidor de la red local (este, sin Tailscale).
+    if (req.headers['access-control-request-private-network']) h['Access-Control-Allow-Private-Network'] = 'true';
+  }
   res.writeHead(codigo, h);
   res.end(JSON.stringify(cuerpo));
 }
@@ -206,21 +84,14 @@ const servidor = http.createServer((req, res) => {
     if (req.method !== 'GET') { responder(req, res, 405, { error: 'solo GET' }); return; }
     const q = Object.fromEntries(url.searchParams);
     if (url.pathname === '/api/salud') { revisarDatos(); responder(req, res, 200, { ok: true }); return; }
-    const m = url.pathname.match(/^\/api\/(super|ferreteria)\/(inicio|buscar|producto|productos|elegir|ofertas|comparar)$/);
+    const m = url.pathname.match(/^\/api\/(super|ferreteria)\/(inicio|indice|buscar|producto|productos|elegir|ofertas|comparar)$/);
     if (!m) { responder(req, res, 404, { error: 'no existe' }); return; }
     const [, rubro, vista] = m;
     const zona = rubro === 'super' && REGIONES.has(q.zona) ? q.zona : null;
     const c = contexto(rubro, zona);
-    const claves = (q.k || '').split(',').filter(Boolean).slice(0, 200);
-    let out;
-    if (vista === 'inicio') out = inicio(c);
-    else if (vista === 'buscar') out = buscar(c, q);
-    else if (vista === 'producto') out = producto(c, q.k);
-    else if (vista === 'productos') out = claves.map(k => c.BYKEY.get(k)).filter(Boolean).map(p => resumen(c, p, { h: true }));
-    else if (vista === 'elegir') out = c.elegir(q.q || '', Math.min(20, +q.n || 6)).map(p => resumen(c, p));
-    else if (vista === 'ofertas') out = Object.fromEntries(claves.map(k => c.BYKEY.get(k)).filter(Boolean).map(p => [p.key, [...c.ofertas(p).values()].map(x => resumen(c, x))]));
-    else if (vista === 'comparar') out = comparar(c, q);
-    if (out == null) { responder(req, res, 404, { error: 'producto no encontrado' }); return; }
+    // Cada vista viene de vistas.js (la misma que usa la app sin servidor). El resultado sale de otro contexto: se copia como JSON.
+    const out = c[vista](q);
+    if (out == null && vista === 'producto') { responder(req, res, 404, { error: 'producto no encontrado' }); return; }
     responder(req, res, 200, out);
   } catch (e) {
     console.error(e);

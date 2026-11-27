@@ -542,9 +542,11 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
   </section>
 
   <p class="foot">Precios publicados en internet por cada supermercado, leídos una vez al día; los de Líder, Tottus y Super10 los aporta la gente. Pueden variar en tienda o según tu comuna.</p>
+  <p class="foot" id="modo" hidden></p>
 </div>
 
 <script src="core.js"></script>
+<script src="vistas.js"></script>
 <dialog id="dlg" aria-labelledby="dName"><div class="dlg" id="dlgBody"></div></dialog>
 <dialog id="zonaDlg" aria-labelledby="zonaTit"><form class="zonabox" method="dialog">
   <h3 id="zonaTit">¿En qué región compras?</h3>
@@ -594,25 +596,70 @@ const store = {
   get(k, def) { try { const v = localStorage.getItem(clave(k)); return v == null ? def : JSON.parse(v); } catch { return def; } },
   set(k, v) { try { localStorage.setItem(clave(k), JSON.stringify(v)); } catch {} },
 };
-// norm, tamaño, precio por unidad, emparejar productos, grupos e índice: en core.js (los usa también el servidor).
+// norm, tamaño, precio por unidad, emparejar productos, grupos e índice: en core.js.
+// Lo que muestra cada pantalla: en vistas.js. Los dos los usa también el servidor.
 
-// ---------- Datos ----------
+// ---------- Datos (solo cuando se calculan en este dispositivo) ----------
 let ALL = [];           // productos de todas las tiendas
 let BYKEY = new Map();
 let ESTADO = {};
 let HOY = '';
 let DATES = [];         // todos los días con datos, ordenados
-
-let CATS = {}, CAT_LIST = []; // categorias.json del rubro y las categorías que tienen productos
+let CATS = {};          // categorias.json del rubro
 async function cargar() {
   const leer = f => fetch(f, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null);
   const [res, ap, cats] = await Promise.all([Promise.all(LEIDAS.map(t => leer(DATA + t + '.json'))), leer(DATA + 'aportes.json'), leer('categorias.json')]);
   CATS = (cats && cats[RUBRO]) || {};
   cargarDatos(Object.fromEntries(LEIDAS.map((t, i) => [t, res[i]])), (ap && ap.aportes) || []);
-  const hay = new Set(ALL.flatMap(p => p.t));
-  CAT_LIST = Object.entries(CATS).map(([c, subs]) => [c, Object.entries(subs).filter(([, ts]) => ts.some(t => hay.has(t))).map(([sub]) => sub)])
-    .filter(([, subs]) => subs.length);
 }
+
+// ---------- De dónde salen los datos ----------
+// Con servidor, la app le pide solo lo que va a mostrar y el teléfono no descarga los precios de todas las tiendas.
+// Sin servidor, o si no responde, descarga los archivos de GitHub y calcula aquí con las mismas vistas (vistas.js).
+// La dirección se guarda en este dispositivo: abrir la app con ?servidor=https://… la cambia y ?servidor= la borra.
+const SERVIDOR_POR_DEFECTO = ''; // cuando la VM tenga dirección pública (Tailscale), va aquí
+const SERVIDOR = (() => {
+  const pedido = new URLSearchParams(location.search).get('servidor');
+  if (pedido != null) {
+    const ok = /^https?:\/\/[^\s/?#]+$/.test(pedido.trim().replace(/\/+$/, ''));
+    store.set('servidor', ok ? pedido.trim().replace(/\/+$/, '') : '');
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
+  return store.get('servidor', SERVIDOR_POR_DEFECTO) || '';
+})();
+let MODO = 'local'; // 'servidor' o 'local'
+let cargando = null;
+const datosLocales = () => cargando || (cargando = cargar());
+// Parámetros de una vista: todos como texto; sí/no como '1' y ''.
+const comoTexto = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === true ? '1' : v == null || v === false ? '' : String(v)]));
+async function pedir(vista, params = {}) {
+  const q = comoTexto(params);
+  if (MODO === 'servidor') {
+    try {
+      const qs = new URLSearchParams(Object.entries({ ...q, zona: ZONA || '' }).filter(([, v]) => v !== ''));
+      const r = await fetch(`${SERVIDOR}/api/${RUBRO}/${vista}?${qs}`, { signal: AbortSignal.timeout(8000) });
+      if (r.ok) return await r.json();
+      if (r.status === 404) return null;
+      throw new Error('el servidor respondió ' + r.status);
+    } catch (e) {
+      // Sin respuesta: se sigue con los archivos de GitHub, sin que la persona tenga que hacer nada.
+      console.warn('Servidor sin respuesta, se usan los datos de GitHub:', e.message);
+      MODO = 'local'; pintarModo(true);
+    }
+  }
+  await datosLocales();
+  return VISTAS[vista](q);
+}
+function pintarModo(caido = false) {
+  const el = $('modo');
+  if (!SERVIDOR) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = MODO === 'servidor' ? 'Conectado al servidor: este dispositivo recibe solo lo que muestra.'
+    : caido ? 'El servidor dejó de responder: los precios se descargaron de GitHub a este dispositivo.'
+    : 'El servidor no respondió: los precios se descargaron de GitHub a este dispositivo.';
+}
+let INICIO = null;   // portada: estado de las tiendas, categorías, alzas y bajas
+let CAT_LIST = [];   // categorías con productos, con sus subcategorías
 
 // ---------- Gráfico de líneas (SVG a mano) ----------
 // series: [{ name, color, values: [número|null por fecha], dash }]
@@ -729,17 +776,21 @@ function sparkline(p, days = 30) {
 }
 
 let RANGO = store.get('rango', 30);
-function renderIndice() {
+const INDICES = {}; // índice ya pedido, por rango (no se vuelve a pedir al cambiar el tamaño de la ventana)
+async function renderIndice() {
   const rc = $('rangeChips');
   rc.innerHTML = [[30, '30 días'], [90, '90 días'], [365, '1 año'], [0, 'Todo']].map(([v, l]) =>
     `<button class="chip" data-r="${v}" aria-pressed="${RANGO === v}">${l}</button>`).join('');
   const el = $('idxChart');
-  if (DATES.length < 2) {
+  if (INICIO.dias < 2) {
     el.innerHTML = `<div class="empty">La tendencia aparece desde el segundo día de datos.<br>Primer registro: ${HOY ? fDiaA(HOY) : '—'}. La tarea diaria va sumando un punto cada mañana.</div>`;
     $('idxLegend').innerHTML = ''; $('idxTable').innerHTML = '<p class="hint">Sin datos suficientes todavía.</p>';
     return;
   }
-  const { dates, out } = indice(RANGO);
+  const rango = RANGO;
+  const res = INDICES[rango] || (INDICES[rango] = await pedir('indice', { d: rango }));
+  if (!res || rango !== RANGO) return;
+  const { dates, out } = res;
   const series = TIENDAS.filter(s => out[s].vals.some(v => v != null)).map(s => ({ name: NOMBRES[s], short: NOMBRES[s], color: color(s), values: out[s].vals }));
   const lastOf = v => { for (let i = v.length - 1; i >= 0; i--) if (v[i] != null) return v[i]; return null; };
   const alt = `Gráfico de líneas del índice de precios desde ${fDiaA(dates[0])}: ` +
@@ -756,15 +807,15 @@ function renderIndice() {
 
 const ph = s => `<div class="ph" aria-hidden="true">${NOMBRES[s][0]}</div>`;
 function itemHtml(p, extra, below = '') {
-  const ch = extra != null ? extra : changeSince(p, 30);
+  const ch = extra != null ? extra : p.c30;
   const chg = ch == null ? '' : `<span class="chg ${ch > 0.05 ? 'up' : ch < -0.05 ? 'down' : 'flat'}">${pct(ch)}</span>`;
   const img = p.i ? `<img src="${esc(p.i)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-ph="${p.store}">` : ph(p.store);
   const u = p.unit ? `<div class="unit">${fmt(p.unit.v)}/${p.unit.u}</div>` : '';
   // En cuántas tiendas está el mismo producto hoy y desde cuánto (se ve sin abrir la ficha).
-  const g = GRUPOS && GRUPO_DE.get(p.key);
-  const otras = g && g.miembros.length > 1 ? (gana(p, g)
-    ? `<div class="also win">✓ El más barato de ${g.miembros.length} tiendas</div>`
-    : `<div class="also">En ${g.miembros.length} tiendas · desde <b class="num">${precioUno(g.miembros[0])}</b> en ${NOMBRES[g.miembros[0].store]}</div>`) : '';
+  const g = p.grp;
+  const otras = g && g.n > 1 ? (g.gana
+    ? `<div class="also win">✓ El más barato de ${g.n} tiendas</div>`
+    : `<div class="also">En ${g.n} tiendas · desde <b class="num">${fmt(g.primero.uno)}${g.primero.paquete ? '<sup title="Precio de una unidad dentro de una caja o pack">*</sup>' : ''}</b> en ${NOMBRES[g.primero.store]}</div>`) : '';
   return `<li class="item" tabindex="0" data-k="${esc(p.key)}">${img}
     <div><div class="name">${esc(p.n)}</div>
       <div class="meta"><i class="dot" style="background:${color(p.store)}"></i><span>${NOMBRES[p.store]}${p.m ? ' · ' + esc(p.m) : ''}${p.ap ? ` · <span class="${p.fresh ? '' : 'bad'}">aportado el ${fDia(p.v)}</span>` : p.fresh ? '' : ` · <span class="bad">no visto desde ${fDia(p.v)}</span>`}${p.out ? ' · agotado' : ''}</span></div>${otras}${below}</div>
@@ -772,21 +823,18 @@ function itemHtml(p, extra, below = '') {
 }
 
 function renderMovers() {
-  const DAYS = 7;
-  const movs = ALL.filter(p => p.fresh).map(p => ({ p, c: changeSince(p, DAYS) })).filter(o => o.c != null && Math.abs(o.c) >= 0.5);
-  const ups = movs.filter(o => o.c > 0).sort((a, b) => b.c - a.c).slice(0, 8);
-  const downs = movs.filter(o => o.c < 0).sort((a, b) => a.c - b.c).slice(0, 8);
-  const none = DATES.length < 2 ? 'Aparecen cuando haya al menos dos días de datos.' : 'Sin cambios de precio en los últimos 7 días.';
-  $('ups').innerHTML = ups.length ? ups.map(o => itemHtml(o.p, o.c)).join('') : `<li class="empty">${none}</li>`;
-  $('downs').innerHTML = downs.length ? downs.map(o => itemHtml(o.p, o.c)).join('') : `<li class="empty">${none}</li>`;
+  const { ups, downs } = INICIO;
+  const none = INICIO.dias < 2 ? 'Aparecen cuando haya al menos dos días de datos.' : 'Sin cambios de precio en los últimos 7 días.';
+  $('ups').innerHTML = ups.length ? ups.map(p => itemHtml(p, p.ch)).join('') : `<li class="empty">${none}</li>`;
+  $('downs').innerHTML = downs.length ? downs.map(p => itemHtml(p, p.ch)).join('') : `<li class="empty">${none}</li>`;
 }
 
 function renderStores() {
   $('stores').innerHTML = TIENDAS.map(s => {
     const e = ESTADO[s] || {};
-    const n = ALL.filter(p => p.store === s && p.fresh && !p.ap).length;
-    const ap = ALL.filter(p => p.store === s && p.ap);
-    const apTxt = ap.length ? `${ap.length.toLocaleString('es-CL')} precio${ap.length === 1 ? '' : 's'} aportado${ap.length === 1 ? '' : 's'}${ZONA ? ' en tu región' : ''}<br>el último del ${fDia(ap.reduce((m, p) => p.v > m ? p.v : m, ''))}` : '';
+    const { n, ap: nAp, apUlt } = INICIO.conteos[s];
+    const ap = { length: nAp };
+    const apTxt = nAp ? `${nAp.toLocaleString('es-CL')} precio${nAp === 1 ? '' : 's'} aportado${nAp === 1 ? '' : 's'}${ZONA ? ' en tu región' : ''}<br>el último del ${fDia(apUlt)}` : '';
     if (!LEIDAS.includes(s)) return `<div class="store" style="--c:${color(s)}"><b>${NOMBRES[s]}</b><span class="st">${apTxt || (ZONA ? 'Sin aportes en tu región' : 'Sin aportes todavía')}</span></div>`;
     const atrasada = e.fecha && e.fecha < HOY;
     const st = SIN_LECTURA.has(s) ? `Ya no se lee sola<br>leídos al ${fDia(e.fecha)}${ap.length ? ` · ${ap.length} aportado${ap.length === 1 ? '' : 's'}` : ''}`
@@ -823,101 +871,63 @@ function filtrosExtra() {
   return f;
 }
 // Marcas de los resultados (sin repetir por mayúsculas o tildes), con cuántos productos tiene cada una.
-function opcionesMarca(r, elegida) {
-  const por = new Map();
-  for (const p of r) {
-    const k = norm(p.m); if (!k) continue;
-    if (!por.has(k)) por.set(k, { n: 0, grafias: new Map() });
-    const o = por.get(k); o.n++; o.grafias.set(p.m, (o.grafias.get(p.m) || 0) + 1);
-  }
-  if (elegida && !por.has(elegida)) {
-    const p = ALL.find(p => norm(p.m) === elegida);
-    por.set(elegida, { n: 0, grafias: new Map([[p ? p.m : elegida, 1]]) });
-  }
-  const ops = [...por].map(([k, o]) => [k, [...o.grafias].sort((a, b) => b[1] - a[1])[0][0], o.n])
-    .sort((a, b) => a[1].localeCompare(b[1], 'es', { sensitivity: 'base' }));
+function opcionesMarca(marcas, elegida) {
   $('fMarca').innerHTML = '<option value="">Todas las marcas</option>'
-    + ops.map(([k, nom, n]) => `<option value="${esc(k)}">${esc(nom)} (${n})</option>`).join('');
+    + marcas.map(([k, nom, n]) => `<option value="${esc(k)}">${esc(nom)} (${n})</option>`).join('');
   $('fMarca').value = elegida || '';
 }
 
-function buscar() {
-  const q = norm($('q').value);
-  const words = q ? q.split(' ') : [];
-  const cat = $('cat').value, sort = $('sort').value;
-  const ts = terminosCategoria(CATS, cat, $('subcat').value); // categoría o subcategoría elegida
-  // Más filtros: alternables, marca, formato y rango de precio.
-  const f = filtrosExtra();
-  if (f.varias) grupos();
-  const pasa = p => (!f.oferta || p.normal) && (!f.baja || (changeSince(p, 30) ?? 0) < -0.5)
-    && (!f.varias || (GRUPO_DE.get(p.key)?.miembros.length || 0) > 1) && (!f.hoy || p.fresh)
-    && (!f.uni || (f.uni === 'u' ? !p.unit || p.unit.u === 'c/u' : p.unit && p.unit.u === f.uni))
-    && (f.min == null || p.price >= f.min) && (f.max == null || p.price <= f.max)
-    && (!f.desc || descuento(p) >= f.desc) && (!f.tarjeta || p.card) && (!f.disp || !p.out) && f.car.every(k => tieneCaracteristica(p, k));
-  let r = ALL.filter(p => sel.has(p.store) && enTerminos(p, ts) && words.every(w => p.search.includes(w)) && pasa(p));
+// La búsqueda la hace vistas.js (aquí o en el servidor). mas = agregar la página siguiente a lo que ya se ve.
+let tokBuscar = 0;
+async function buscar(mas = false) {
+  const f = filtrosExtra(); // también actualiza el contador de "Más filtros"
+  const desde = mas ? shown : 0;
+  if (mas) shown += 60; else shown = 60;
+  const tok = ++tokBuscar;
+  const r = await pedir('buscar', {
+    q: $('q').value, tiendas: sel.size === TIENDAS.length ? '' : [...sel].join(','), cat: $('cat').value, sub: $('subcat').value, orden: $('sort').value,
+    oferta: f.oferta, baja: f.baja, varias: f.varias, hoy: f.hoy, tarjeta: f.tarjeta, disp: f.disp, marca: f.marca, uni: f.uni,
+    min: f.min, max: f.max, desc: f.desc || '', car: f.car.join(','), desde, n: 60 });
+  if (tok !== tokBuscar || !r) return; // llegó otra búsqueda más nueva
   // La lista de marcas sale de lo que cumple los demás filtros; la marca elegida se aplica después.
-  opcionesMarca(r, f.marca);
-  if (f.marca) r = r.filter(p => norm(p.m) === f.marca);
-  // El mismo producto en varias tiendas va en una sola fila: la más barata (por unidad) entre las tiendas marcadas.
-  // La fila dice en cuántas tiendas está; al tocarla, la ficha muestra el precio en cada una.
-  grupos();
-  const filaDe = new Map(), unicos = [];
-  for (const p of r) {
-    const g = GRUPO_DE.get(p.key);
-    if (!g) { unicos.push(p); continue; }
-    const i = filaDe.get(g);
-    if (i === undefined) { filaDe.set(g, unicos.length); unicos.push(p); }
-    else if (porUno(p) < porUno(unicos[i])) unicos[i] = p;
-  }
-  r = unicos;
-  const score = p => (p.fresh ? 0 : 1000) + (q && p.t.some(t => norm(t) === q || q.startsWith(norm(t))) ? 0 : 2) + (q && p.search.startsWith(q) ? 0 : 1);
-  const orden = {
-    rel: (a, b) => score(a) - score(b) || a.price - b.price,
-    price: (a, b) => a.price - b.price,
-    unit: (a, b) => (a.unit ? a.unit.v : Infinity) - (b.unit ? b.unit.v : Infinity),
-    disc: (a, b) => (b.normal ? 1 - b.price / b.normal : 0) - (a.normal ? 1 - a.price / a.normal : 0),
-    up30: (a, b) => (changeSince(b, 30) ?? -1e9) - (changeSince(a, 30) ?? -1e9),
-    down30: (a, b) => (changeSince(a, 30) ?? 1e9) - (changeSince(b, 30) ?? 1e9),
-  };
-  const portada = !q && !ts && sort === 'rel' && !f.n;
-  r.sort(portada ? (a, b) => (b.fresh - a.fresh) || orden.disc(a, b) : orden[sort]);
-  $('count').textContent = !r.length ? '' : portada
-    ? `Mayores descuentos de hoy · ${r.length.toLocaleString('es-CL')} productos en total`
-    : `${r.length.toLocaleString('es-CL')} producto${r.length === 1 ? '' : 's'}`;
-  $('results').innerHTML = r.length ? r.slice(0, shown).map(p => itemHtml(p)).join('')
-    : `<li class="empty">No hay productos con esos filtros.${q ? '<br>Prueba con menos palabras o revisa las tiendas marcadas.' : ''}</li>`;
-  $('moreBtn').hidden = r.length <= shown;
+  opcionesMarca(r.marcas, f.marca);
+  $('count').textContent = !r.total ? '' : r.portada
+    ? `Mayores descuentos de hoy · ${r.total.toLocaleString('es-CL')} productos en total`
+    : `${r.total.toLocaleString('es-CL')} producto${r.total === 1 ? '' : 's'}`;
+  // El mismo producto en varias tiendas va en una sola fila (la más barata); al tocarla, la ficha muestra el precio en cada una.
+  const html = r.filas.map(p => itemHtml(p)).join('');
+  if (mas) $('results').insertAdjacentHTML('beforeend', html);
+  else $('results').innerHTML = r.total ? html
+    : `<li class="empty">No hay productos con esos filtros.${$('q').value.trim() ? '<br>Prueba con menos palabras o revisa las tiendas marcadas.' : ''}</li>`;
+  $('moreBtn').hidden = r.total <= shown;
 }
 
 // ---------- Seguidos ----------
 let favs = new Set(store.get('favs', []));
-function renderFavs() {
-  const list = [...favs].map(k => BYKEY.get(k)).filter(Boolean);
+async function renderFavs() {
+  const list = favs.size ? await pedir('productos', { k: [...favs].join(','), h: true }) || [] : [];
   $('favs').innerHTML = list.length ? list.map(p => itemHtml(p, null, sparkline(p))).join('')
     : '<li class="empty">Aún no sigues ningún producto.</li>';
 }
 
 let cShown = 30, vShown = 20;
-function renderComparar() {
+let tokCmp = 0, ULT_CMP = null;
+async function renderComparar() {
   renderCanasta(); renderDuo();
   const cat = $('cCat').value;
   const [cc, cs] = cat.split('|');
-  const tsC = terminosCategoria(CATS, cc, cs);
-  const G = grupos().filter(g => !tsC || g.t.some(t => tsC.has(t)));
+  const A = $('cA').value, B = $('cB').value;
+  store.set('cmpA', A); store.set('cmpB', B);
+  // Ranking, cara a cara y productos comparados: los calcula vistas.js (aquí o en el servidor).
+  const tok = ++tokCmp;
+  const res = await pedir('comparar', { cat: cc, sub: cs, a: A, b: B, nv: vShown, ng: cShown });
+  if (tok !== tokCmp || !res) return;
+  ULT_CMP = res;
 
-  // 1. Ranking: en productos que venden al menos 3 tiendas, cuánto más caro que el más barato es cada tienda.
-  const MIN_T = TIENDAS.length > 3 ? 3 : 2; // con dos tiendas basta con que el producto esté en las dos
-  const G3 = G.filter(g => g.miembros.length >= MIN_T);
-  // Mediana (no promedio): un emparejamiento equivocado no mueve el resultado.
-  const mediana = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
-  const st = TIENDAS.map(s => {
-    let wins = 0; const difs = [];
-    for (const g of G3) { const m = g.miembros.find(x => x.store === s); if (!m) continue; if (gana(m, g)) wins++; difs.push(porUno(m) / g.min - 1); }
-    return { s, n: difs.length, wins, prom: difs.length ? mediana(difs) * 100 : null };
-  });
-  const MIN_N = Math.min(15, Math.max(4, Math.round(G3.length * 0.2))); // en categorías chicas basta con menos productos
-  const rk = st.filter(x => x.n >= MIN_N).sort((a, b) => a.prom - b.prom);
-  const fuera = st.filter(x => x.n < MIN_N);
+  // 1. Ranking: en productos que venden al menos 3 tiendas, cuánto más caro que el más barato es cada tienda (mediana).
+  const { rk, minT: MIN_T } = res;
+  const fuera = res.fuera.map(s => ({ s }));
+  const G3 = { length: res.g3 };
   const maxP = Math.max(1, ...rk.map(x => x.prom));
   $('rank').innerHTML = rk.length ? rk.map((x, i) => `
     <div class="rk">
@@ -928,24 +938,19 @@ function renderComparar() {
         <small>Más barato en ${x.wins.toLocaleString('es-CL')} de ${x.n.toLocaleString('es-CL')} productos</small>
       </div>
     </div>`).join('') : '<div class="empty">No hay suficientes productos en común para esta categoría.</div>';
-  const atrasadas = TIENDAS.filter(s => ESTADO[s] && ESTADO[s].fecha && ESTADO[s].fecha < HOY);
+  const atrasadas = res.atrasadas;
   $('rankNote').innerHTML = `Cuánto más caro sale un producto típico en esa tienda que en la más barata (mediana), en ${G3.length.toLocaleString('es-CL')} productos que venden al menos ${MIN_T} tiendas.${FERRE ? '' : ' Alvi usa su precio por unidad, sin los descuentos por cantidad.'} Se compara por unidad: L, kg o unidad (en cajas y packs, el precio dividido por la cantidad).`
     + (fuera.length ? ` Sin suficientes productos en común: ${fuera.map(x => NOMBRES[x.s]).join(', ')}.` : '')
     + (atrasadas.length ? ` ${atrasadas.map(s => NOMBRES[s]).join(', ')} no entra: sus precios no son de hoy.` : '');
 
   // 2. Cara a cara entre dos tiendas.
-  const A = $('cA').value, B = $('cB').value;
-  store.set('cmpA', A); store.set('cmpB', B);
-  const pares = G.map(g => ({ g, a: g.miembros.find(m => m.store === A), b: g.miembros.find(m => m.store === B) }))
-    .filter(x => x.a && x.b && A !== B)
-    .map(x => ({ ...x, r: porUno(x.a) / porUno(x.b) }));
   if (A === B) {
     $('vsRes').innerHTML = '<p class="empty">Elige dos tiendas distintas.</p>'; $('vsList').innerHTML = ''; $('vsMore').hidden = true;
-  } else if (!pares.length) {
+  } else if (!res.vs) {
     $('vsRes').innerHTML = `<p class="empty">${NOMBRES[A]} y ${NOMBRES[B]} no tienen productos en común${cat ? ' en esta categoría' : ''}.</p>`; $('vsList').innerHTML = ''; $('vsMore').hidden = true;
   } else {
-    const aGana = pares.filter(x => x.r < 0.995).length, bGana = pares.filter(x => x.r > 1.005).length, iguales = pares.length - aGana - bGana;
-    const geo = Math.exp(pares.reduce((s, x) => s + Math.log(x.r), 0) / pares.length); // promedio de la razón de precios
+    const { aGana, bGana, iguales, geo } = res.vs; // geo: promedio de la razón de precios
+    const pares = { length: res.vs.n };
     const dif = (1 - geo) * 100;
     const frase = Math.abs(dif) < 0.5 ? `En promedio cuestan lo mismo.`
       : `En promedio, <b>${NOMBRES[dif > 0 ? A : B]}</b> es <b class="num">${Math.abs(dif).toLocaleString('es-CL', { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%</b> más barato.`;
@@ -959,16 +964,19 @@ function renderComparar() {
         <span><i class="dot" style="background:var(--line)"></i>Igual: <b class="num">${iguales}</b></span>
         <span><i class="dot" style="background:${color(B)}"></i>${NOMBRES[B]} más barato: <b class="num">${bGana}</b></span>
       </div>`;
-    pares.sort((x, y) => Math.abs(Math.log(y.r)) - Math.abs(Math.log(x.r)));
-    $('vsList').innerHTML = pares.slice(0, vShown).map(x => filaPar(x, A, B)).join('');
-    $('vsMore').hidden = pares.length <= vShown;
+    // Los pares vienen ordenados de mayor a menor diferencia.
+    $('vsList').innerHTML = res.pares.map(x => filaPar(x, A, B)).join('');
+    $('vsMore').hidden = res.paresTotal <= vShown;
   }
 
   // 3. Productos comparados: los que están en más tiendas primero.
-  const lista = G.slice().sort((x, y) => y.miembros.length - x.miembros.length || (porUno(y.miembros.at(-1)) / y.min) - (porUno(x.miembros.at(-1)) / x.min));
-  $('gCount').textContent = `${lista.length.toLocaleString('es-CL')} productos en 2 o más tiendas${cat ? ' en esta categoría' : ''}. Ordenados de más a menos tiendas; el precio es por unidad del mismo tamaño.`;
-  $('gList').innerHTML = lista.length ? lista.slice(0, cShown).map(filaGrupo).join('') : '<li class="empty">No hay productos en común en esta categoría.</li>';
-  $('gMore').hidden = lista.length <= cShown;
+  pintarGrupos();
+}
+function pintarGrupos() {
+  const res = ULT_CMP, cat = $('cCat').value;
+  $('gCount').textContent = `${res.gruposTotal.toLocaleString('es-CL')} productos en 2 o más tiendas${cat ? ' en esta categoría' : ''}. Ordenados de más a menos tiendas; el precio es por unidad del mismo tamaño.`;
+  $('gList').innerHTML = res.grupos.length ? res.grupos.map(filaGrupo).join('') : '<li class="empty">No hay productos en común en esta categoría.</li>';
+  $('gMore').hidden = res.gruposTotal <= cShown;
 }
 const precioUno = m => `${fmt(porUno(m))}${esPaquete(m) ? '<sup title="Precio de una unidad dentro de una caja o pack">*</sup>' : ''}`;
 // Fila de "Productos comparados": se despliega con la tabla tienda por tienda.
@@ -1007,9 +1015,9 @@ function tablaTiendas(g) {
 // ---------- Buscador chico para elegir productos (canasta y producto a producto) ----------
 function pickerHtml(lista, accion, etiqueta) {
   return lista.map(p => {
-    const g = GRUPO_DE.get(p.key);
+    const g = p.grp;
     return `<li><button class="pick" data-${accion}="${esc(p.key)}">
-      <span><b>${esc(p.n)}</b><small class="hint">${g ? `En ${g.miembros.length} tiendas · desde ${fmt(g.min)}` : `Solo en ${NOMBRES[p.store]} · ${fmt(p.price)}`}</small></span>
+      <span><b>${esc(p.n)}</b><small class="hint">${g ? `En ${g.n} tiendas · desde ${fmt(g.min)}` : `Solo en ${NOMBRES[p.store]} · ${fmt(p.price)}`}</small></span>
       <span class="pick-add" aria-hidden="true">${etiqueta}</span></button></li>`;
   }).join('');
 }
@@ -1023,14 +1031,26 @@ function agregarCanasta(k) {
   if (it) it.n++; else canasta.push({ k, n: 1 });
   guardarCanasta();
 }
-function renderCanasta() {
-  grupos();
-  const items = canasta.map(x => ({ ...x, p: BYKEY.get(x.k) })).filter(x => x.p);
+// Los productos (por clave) y, para cada uno, el mismo producto con precio de hoy en cada tienda (Map tienda → producto).
+async function conOfertas(claves) {
+  if (!claves.length) return [];
+  const k = claves.join(',');
+  const [ps, ofs] = await Promise.all([pedir('productos', { k }), pedir('ofertas', { k })]);
+  const por = new Map((ps || []).map(p => [p.key, p]));
+  return claves.map(c => por.get(c)).filter(Boolean).map(p => ({ p, of: new Map(((ofs || {})[p.key] || []).map(q => [q.store, q])) }));
+}
+let tokK = 0;
+async function renderCanasta() {
+  const tok = ++tokK;
+  const datos = await conOfertas(canasta.map(x => x.k));
+  if (tok !== tokK) return;
+  const de = new Map(datos.map(d => [d.p.key, d]));
+  const items = canasta.filter(x => de.has(x.k)).map(x => ({ ...x, p: de.get(x.k).p }));
   if (!items.length) {
     $('kItems').innerHTML = '<li class="empty">Tu canasta está vacía. Busca un producto arriba, o usa «🛒 Agregar a mi canasta» en su ficha.</li>';
     $('kTot').innerHTML = ''; return;
   }
-  const filas = items.map(x => ({ ...x, of: ofertas(x.p) }));
+  const filas = items.map(x => ({ ...x, of: de.get(x.k).of }));
   $('kItems').innerHTML = filas.map(x => {
     const mejor = [...x.of.values()].sort((a, b) => porUno(a) - porUno(b))[0];
     return `<li class="item cmp kitem">
@@ -1081,14 +1101,18 @@ function ponerEnDuo(k) {
   if (duo.length < 2) duo.push(k); else duo[1] = k;
   store.set('duo', duo);
 }
-function renderDuo() {
-  grupos();
-  const ps = duo.map(k => BYKEY.get(k)).filter(Boolean);
+let tokD = 0;
+async function renderDuo() {
+  const tok = ++tokD;
+  const datos = await conOfertas(duo);
+  if (tok !== tokD) return;
+  const ps = datos.map(d => d.p);
+  const ofDe = new Map(datos.map(d => [d.p.key, d.of]));
   const tarjeta = (p, i) => {
     if (!p) return `<div class="duo-card vacio"><span class="hint">${i === 0 ? 'Primer producto' : 'Segundo producto'}<br>Búscalo arriba</span></div>`;
-    const of = [...ofertas(p).values()].sort((a, b) => porUno(a) - porUno(b));
+    const of = [...ofDe.get(p.key).values()].sort((a, b) => porUno(a) - porUno(b));
     const best = of[0] || p;
-    const ch = changeSince(p, 30);
+    const ch = p.c30;
     const img = p.i ? `<img src="${esc(p.i)}" alt="" referrerpolicy="no-referrer" data-ph="${p.store}">` : ph(p.store);
     return `<div class="duo-card">
       <button class="x small" data-duodel="${esc(p.key)}" aria-label="Quitar ${esc(p.n)}">✕</button>
@@ -1106,7 +1130,7 @@ function renderDuo() {
   $('duo').innerHTML = tarjeta(ps[0], 0) + tarjeta(ps[1], 1);
   if (ps.length < 2) { $('duoRes').innerHTML = ''; return; }
   // Veredicto: por unidad de medida (L, kg o c/u) si ambos la tienen y es la misma; si no, por precio.
-  const mejorDe = p => [...ofertas(p).values()].sort((a, b) => porUno(a) - porUno(b))[0] || p;
+  const mejorDe = p => [...ofDe.get(p.key).values()].sort((a, b) => porUno(a) - porUno(b))[0] || p;
   const [a, b] = ps.map(mejorDe);
   const mismaUnidad = a.unit && b.unit && a.unit.u === b.unit.u;
   const va = mismaUnidad ? a.unit.v : a.price, vb = mismaUnidad ? b.unit.v : b.price;
@@ -1147,14 +1171,17 @@ function tablaPrecios(p, eq, esMasBarato) {
     <p class="hint" style="margin-top:6px">${caro > barato * 1.005 ? `Entre el más barato y el más caro hay <b class="num">${fmt(caro - barato)}</b> de diferencia. ` : ''}El porcentaje compara con ${NOMBRES[p.store]}${paquetes ? '; en cajas y packs (*) es el precio de una unidad' : ''}.${eq.some(e => !e.exact) ? ' Coincidencias por marca, nombre y tamaño: revisa que sea el mismo producto.' : ''}</p>
   </section>`;
 }
-function abrir(key) {
-  const p = BYKEY.get(key); if (!p) return;
-  const dates = DATES.filter(d => d >= p.h[0][0] && d <= p.v);
+let tokFicha = 0;
+async function abrir(key) {
+  const tok = ++tokFicha;
+  const r = await pedir('producto', { k: key });
+  if (!r || tok !== tokFicha) return;
+  const { p, fechas: dates } = r;
   const precios = p.h.map(r => r[1]);
   const lo = Math.min(...precios), hi = Math.max(...precios);
-  const ch = changeSince(p, 30);
+  const ch = p.c30;
   // Otras tiendas, de menor a mayor precio por unidad; se marca la más barata (puede ser esta misma).
-  const eq = equivalentes(p).sort((a, b) => porUno(a.q) - porUno(b.q));
+  const eq = r.eq.sort((a, b) => porUno(a.q) - porUno(b.q));
   const minUno = Math.min(porUno(p), ...eq.map(e => porUno(e.q)));
   const esMasBarato = q => eq.length > 0 && porUno(q) <= minUno + 0.5;
   const fav = favs.has(key);
@@ -1236,7 +1263,7 @@ document.addEventListener('click', ev => {
   if (it) { abrir(it.dataset.k); return; }
   // Comparar: desplegar un producto, canasta y producto a producto.
   const gh = ev.target.closest('[data-g]');
-  if (gh) { const k = gh.dataset.g; ABIERTOS.has(k) ? ABIERTOS.delete(k) : ABIERTOS.add(k); renderComparar(); return; }
+  if (gh) { const k = gh.dataset.g; ABIERTOS.has(k) ? ABIERTOS.delete(k) : ABIERTOS.add(k); pintarGrupos(); return; }
   const add = ev.target.closest('[data-add]');
   if (add) {
     agregarCanasta(add.dataset.add);
@@ -1323,10 +1350,10 @@ function llenarSub() {
 $('sort').addEventListener('change', () => { shown = 60; buscar(); });
 for (const id of ['fMarca', 'fUni']) $(id).addEventListener('change', () => { shown = 60; buscar(); });
 let tf; for (const id of ['fMin', 'fMax']) $(id).addEventListener('input', () => { clearTimeout(tf); tf = setTimeout(() => { shown = 60; buscar(); }, 300); });
-$('moreBtn').addEventListener('click', () => { shown += 60; buscar(); });
+$('moreBtn').addEventListener('click', () => buscar(true));
 for (const id of ['cCat', 'cA', 'cB']) $(id).addEventListener('change', () => { cShown = 30; vShown = 20; renderComparar(); });
-let tk; $('kq').addEventListener('input', () => { clearTimeout(tk); tk = setTimeout(() => { grupos(); $('kPick').innerHTML = pickerHtml(elegir($('kq').value), 'add', '+ Agregar'); }, 150); });
-let tp; $('pq').addEventListener('input', () => { clearTimeout(tp); tp = setTimeout(() => { grupos(); $('pPick').innerHTML = pickerHtml(elegir($('pq').value), 'duo', duo.length < 2 ? '⇄ Elegir' : '⇄ Cambiar B'); }, 150); });
+let tk; $('kq').addEventListener('input', () => { clearTimeout(tk); tk = setTimeout(async () => { const q = $('kq').value; const l = q.trim() ? await pedir('elegir', { q }) : []; if (q === $('kq').value) $('kPick').innerHTML = pickerHtml(l || [], 'add', '+ Agregar'); }, 150); });
+let tp; $('pq').addEventListener('input', () => { clearTimeout(tp); tp = setTimeout(async () => { const q = $('pq').value; const l = q.trim() ? await pedir('elegir', { q }) : []; if (q === $('pq').value) $('pPick').innerHTML = pickerHtml(l || [], 'duo', duo.length < 2 ? '⇄ Elegir' : '⇄ Cambiar B'); }, 150); });
 $('gMore').addEventListener('click', () => { cShown += 30; renderComparar(); });
 $('vsMore').addEventListener('click', () => { vShown += 20; renderComparar(); });
 // ---------- Zona (región) ----------
@@ -1367,23 +1394,28 @@ $('zonaDlg').addEventListener('close', () => {
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!$('view-tendencia').hidden) renderIndice(); }, 200); });
 
 (async () => {
-  await cargar();
-  if (!ALL.length) {
+  // Con servidor configurado: se usa si responde rápido; si no, los archivos de GitHub como siempre.
+  if (SERVIDOR) {
+    try { const r = await fetch(SERVIDOR + '/api/salud', { signal: AbortSignal.timeout(3000) }); if (r.ok) MODO = 'servidor'; } catch {}
+  }
+  INICIO = await pedir('inicio');
+  pintarModo();
+  const tiendas = INICIO ? TIENDAS.filter(s => INICIO.conteos[s].total).length : 0;
+  if (!tiendas) {
     $('sub').textContent = 'Sin datos todavía';
     $('view-tendencia').innerHTML = '<div class="panel empty">No se pudieron cargar los precios. Revisa tu conexión y vuelve a abrir la app.</div>';
     return;
   }
-  const tiendas = new Set(ALL.map(p => p.store)).size;
+  HOY = INICIO.hoy; ESTADO = INICIO.estado; CAT_LIST = INICIO.categorias;
   $('sub').textContent = `${tiendas} ${FERRE ? (tiendas === 1 ? 'ferretería' : 'ferreterías') : 'supermercados'} · actualizado el ${fDia(HOY)}`;
   $('cat').innerHTML += CAT_LIST.map(([c]) => `<option>${esc(c)}</option>`).join('');
   // Comparar: categorías y, debajo de cada una, sus subcategorías (valor "Categoría|Subcategoría").
   $('cCat').innerHTML += CAT_LIST.map(([c, subs]) => `<optgroup label="${esc(c)}"><option value="${esc(c)}">${esc(c)}: todo</option>`
     + subs.map(x => `<option value="${esc(c + '|' + x)}">${esc(x)}</option>`).join('') + '</optgroup>').join('');
-  $('fCar').innerHTML = Object.entries(CARACTERISTICAS).map(([k, [nombre]]) => `<button class="chip" type="button" data-car="${k}" aria-pressed="false">${esc(nombre)}</button>`).join('');
+  $('fCar').innerHTML = INICIO.caracteristicas.map(([k, nombre]) => `<button class="chip" type="button" data-car="${k}" aria-pressed="false">${esc(nombre)}</button>`).join('');
   const opcTiendas = TIENDAS.map(s => `<option value="${s}">${NOMBRES[s]}</option>`).join('');
   $('cA').innerHTML = opcTiendas; $('cB').innerHTML = opcTiendas;
   $('cA').value = store.get('cmpA', FERRE ? 'sodimac' : 'alvi'); $('cB').value = store.get('cmpB', FERRE ? 'easy' : 'jumbo');
-  grupos(); // mismo producto entre tiendas: lo usan las listas ("en N tiendas · desde…") y la pestaña Comparar
   if (matchMedia('(min-width: 1024px)').matches) { $('storeSel').open = true; $('masF').open = true; }
   renderStoreChips(); renderMovers(); renderStores();
   ver(store.get('vista', 'tendencia'));

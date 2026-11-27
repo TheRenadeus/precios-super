@@ -93,3 +93,16 @@ Líder no se incluye: sus reglas prohíben la lectura automática de su supermer
 1. Edita `index.html`.
 2. En `sw.js`, sube el número de versión (`precios-v1` → `precios-v2`).
 3. `git commit` y `git push`.
+
+## 4. Servidor (opcional)
+
+Sin servidor, el teléfono descarga los precios de todas las tiendas desde GitHub y calcula todo ahí.
+Con servidor, la app le pide solo lo que va a mostrar (una búsqueda, una ficha, una comparación).
+
+- `core.js`: lógica de precios (tamaños, mismo producto entre tiendas, índice).
+- `vistas.js`: lo que muestra cada pantalla. Lo usan la app y el servidor, así que el resultado es el mismo venga de donde venga.
+- `servidor/servidor.mjs`: el servidor, sin dependencias (Node 18 o superior). `servidor/instalar.sh` lo deja funcionando en una VM Ubuntu.
+
+Para conectar la app, ábrela una vez con `?servidor=https://dirección-del-servidor` (queda guardado en ese dispositivo;
+`?servidor=` lo borra). Si el servidor no responde, la app sigue sola con los archivos de GitHub y lo avisa al pie de la página.
+El servidor debe aceptar el sitio de la app en la variable `ORIGENES`.
