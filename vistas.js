@@ -19,8 +19,12 @@ const VISTAS = {
   // Portada: estado de cada tienda, categorías, mayores alzas y bajas de la semana.
   inicio() {
     grupos();
-    const DAYS = 7;
-    const movs = ALL.filter(p => p.fresh).map(p => ({ p, ch: changeSince(p, DAYS) })).filter(o => o.ch != null && Math.abs(o.ch) >= 0.5);
+    // Alzas y bajas de la semana; si hay menos de 7 días de datos, desde el primer día (antes salían vacías).
+    const DAYS = 7, movDesde = DATES.length ? (addDays(HOY, -DAYS) < DATES[0] ? DATES[0] : addDays(HOY, -DAYS)) : HOY;
+    const movs = ALL.filter(p => p.fresh && p.h[0][0] <= movDesde).map(p => {
+      const antes = priceAt(p, movDesde);
+      return { p, antes, ch: antes ? (p.price / antes - 1) * 100 : null };
+    }).filter(o => o.ch != null && Math.abs(o.ch) >= 0.5);
     const ups = movs.filter(o => o.ch > 0).sort((a, b) => b.ch - a.ch).slice(0, 8);
     const downs = movs.filter(o => o.ch < 0).sort((a, b) => a.ch - b.ch).slice(0, 8);
     const conteos = {};
@@ -33,9 +37,10 @@ const VISTAS = {
     const hay = new Set(ALL.flatMap(p => p.t));
     const categorias = Object.entries(CATS).map(([cat, subs]) => [cat, Object.entries(subs).filter(([, ts]) => ts.some(t => hay.has(t))).map(([sub]) => sub)])
       .filter(([, subs]) => subs.length);
+    const mov = o => ({ ...resumen(o.p), ch: o.ch, antes: o.antes });
     return { hoy: HOY, dias: DATES.length, estado: ESTADO, conteos, categorias,
       caracteristicas: Object.entries(CARACTERISTICAS).map(([k, [nombre]]) => [k, nombre]),
-      ups: ups.map(o => ({ ...resumen(o.p), ch: o.ch })), downs: downs.map(o => ({ ...resumen(o.p), ch: o.ch })) };
+      movDesde, ups: ups.map(mov), downs: downs.map(mov) };
   },
 
   // Índice de precios de cada tienda en los últimos d días (0 = todo).

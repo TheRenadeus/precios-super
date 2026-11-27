@@ -235,19 +235,57 @@ select.txt{appearance:auto}
 .tip .r{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .tip .r b{margin-left:auto;padding-left:10px}
 
-/* Supermercados */
-.stores{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px}
-.store{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:10px 12px 10px 14px;position:relative;overflow:hidden;font-size:.92rem}
-.store::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
-.store b{display:block;font-weight:700}
-.store .st{color:var(--muted);font-size:.82rem;display:block;line-height:1.35;margin-top:2px}
 .bad{color:var(--up);font-weight:600}
 
-details.tbl{margin-top:10px;font-size:.9rem}
-details.tbl summary{cursor:pointer;color:var(--accent);font-weight:600;min-height:44px;display:flex;align-items:center;gap:8px;list-style:none}
-details.tbl summary::-webkit-details-marker{display:none}
-details.tbl summary::before{content:'';width:0;height:0;border-style:solid;border-width:5px 0 5px 7px;border-color:transparent transparent transparent currentColor;transition:transform .15s}
-details.tbl[open] summary::before{transform:rotate(90deg)}
+/* Tablas de Tendencia: los datos mandan; líneas finas, números alineados a la derecha con cifras de ancho fijo */
+.t{width:100%;border-collapse:collapse;margin-top:14px;font-size:.92rem}
+.t th,.t td{padding:10px 8px;border-bottom:1px solid color-mix(in srgb,var(--line) 75%,transparent);text-align:left;vertical-align:middle}
+.t thead th{font-size:.76rem;font-weight:600;color:var(--muted);padding-top:0;padding-bottom:8px;border-bottom-color:var(--line);vertical-align:bottom;line-height:1.25}
+.t tbody th{font-weight:600;color:var(--ink)}
+.t tbody tr:last-child > *{border-bottom:0}
+.t tr > :first-child{padding-left:0}
+.t tr > :last-child{padding-right:0}
+.t .n{text-align:right;white-space:nowrap;font-family:"Bricolage Grotesque",Figtree,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.t thead .n{font-family:inherit;white-space:normal}
+.t .tn{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.t .key{width:16px;height:4px}
+.t td.up,.t .up{color:var(--up)} .t td.down,.t .down{color:var(--down)} .t td.cero{color:var(--muted)}
+.tnota .up{color:var(--up);font-weight:600} .tnota .down{color:var(--down);font-weight:600}
+.tnota{margin-top:10px}
+.dbar{display:inline-block;position:relative;width:72px;height:10px;margin-right:10px;vertical-align:-1px;
+  background:linear-gradient(var(--line),var(--line)) center/1px 100% no-repeat}
+.dbar i{position:absolute;top:1px;bottom:1px}
+.dbar i.up{left:50%;background:var(--up);border-radius:0 2px 2px 0}
+.dbar i.down{right:50%;background:var(--down);border-radius:2px 0 0 2px}
+/* Alzas y bajas: cada fila abre la ficha del producto */
+.mov tbody tr{cursor:pointer}
+.mov tbody tr:hover > *{background:var(--soft)}
+.mov tbody tr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.mov tbody th{font-weight:400;width:100%}
+.mov .prod{display:flex;gap:10px;align-items:center}
+.mov .prod img,.mov .prod .ph{width:40px;height:40px;flex:none;border-radius:8px;object-fit:contain;background:#fff;border:1px solid var(--line);padding:2px;font-size:.9rem}
+.mov .prod .ph{background:var(--soft)}
+.mov .name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:600;font-size:.88rem;line-height:1.25}
+.mov .meta{display:flex;gap:5px;align-items:center;color:var(--muted);font-size:.76rem;margin-top:2px}
+.mov .meta .dot{width:8px;height:8px}
+.mov .antes{color:var(--muted)}
+.mov .chg{font-size:.82rem}
+/* En pantallas anchas, las columnas no se separan tanto que cueste seguir la fila */
+.t.idx,.t.tiendas{max-width:780px}
+.tiendas .est{font-size:.86rem;color:var(--muted)}
+.tiendas .ok{color:var(--down);font-weight:600} .tiendas .warn{color:var(--warn);font-weight:600} .tiendas .muted{color:var(--muted)}
+.tiendas .dot{width:10px;height:10px}
+@media (max-width:480px){
+  /* Teléfonos angostos: sin el logo, los botones de rubro y el de tema caben sin que la página se desplace hacia el lado */
+  .hero .logo{display:none}
+  .hero-in > div{min-width:0}
+  .t{font-size:.86rem}
+  .t th,.t td{padding-left:5px;padding-right:5px}
+  .dbar,.t .largo{display:none}
+  .t .tn{white-space:normal;gap:8px}
+  .mov .prod img,.mov .prod .ph{display:none}
+}
+
 table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.88rem}
 th,td{text-align:right;padding:7px 4px;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left}
@@ -398,22 +436,21 @@ h4.sec{margin:20px 0 0;font-family:"Bricolage Grotesque",sans-serif;font-size:1.
       <p class="hint">100 = precio de cada producto el primer día del período. Compara los mismos productos día a día.</p>
       <div class="chips" id="rangeChips"></div>
       <div id="idxChart" class="chart"></div>
-      <div id="idxLegend" class="legend"></div>
-      <details class="tbl"><summary>Ver como tabla</summary><div id="idxTable"></div></details>
+      <div id="idxTable"></div>
     </div>
     <div class="panel">
       <h2>Mayores alzas</h2>
       <p class="hint" id="upHint">Últimos 7 días</p>
-      <ul class="list cards" id="ups"></ul>
+      <div id="ups"></div>
     </div>
     <div class="panel">
       <h2>Mayores bajas</h2>
       <p class="hint" id="downHint">Últimos 7 días</p>
-      <ul class="list cards" id="downs"></ul>
+      <div id="downs"></div>
     </div>
     <div class="panel full">
       <h2>Supermercados</h2>
-      <div class="stores" id="stores"></div>
+      <div id="stores"></div>
     </div>
   </section>
 
@@ -667,7 +704,7 @@ let CAT_LIST = [];   // categorías con productos, con sus subcategorías
 function lineChart(el, { dates, series, yFmt, h = 220, endLabels = true, base = null, alt = '' }) {
   el.innerHTML = '';
   const W = Math.max(280, el.clientWidth || 320);
-  const padL = 46, padR = endLabels ? 96 : 12, padT = 10, padB = 24;
+  const padL = 46, padR = endLabels ? 128 : 12, padT = 10, padB = 24;
   const iw = W - padL - padR, ih = h - padT - padB;
   let lo = Infinity, hi = -Infinity;
   for (const s of series) for (const v of s.values) if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
@@ -785,26 +822,43 @@ async function renderIndice() {
   const el = $('idxChart');
   if (INICIO.dias < 2) {
     el.innerHTML = `<div class="empty">La tendencia aparece desde el segundo día de datos.<br>Primer registro: ${HOY ? fDiaA(HOY) : '—'}. La tarea diaria va sumando un punto cada mañana.</div>`;
-    $('idxLegend').innerHTML = ''; $('idxTable').innerHTML = '<p class="hint">Sin datos suficientes todavía.</p>';
+    $('idxTable').innerHTML = '';
     return;
   }
   const rango = RANGO;
   const res = INDICES[rango] || (INDICES[rango] = await pedir('indice', { d: rango }));
   if (!res || rango !== RANGO) return;
   const { dates, out } = res;
-  const series = TIENDAS.filter(s => out[s].vals.some(v => v != null)).map(s => ({ name: NOMBRES[s], short: NOMBRES[s], color: color(s), values: out[s].vals }));
-  const lastOf = v => { for (let i = v.length - 1; i >= 0; i--) if (v[i] != null) return v[i]; return null; };
+  // Solo las tiendas con productos para comparar en el período (Tottus, sin lectura nueva, quedaba como una línea plana en 100).
+  const conDatos = TIENDAS.filter(s => out[s].n > 0 && out[s].vals.some(v => v != null));
+  const sinDatos = TIENDAS.filter(s => LEIDAS.includes(s) && !conDatos.includes(s));
+  const series = conDatos.map(s => ({ name: NOMBRES[s], short: NOMBRES[s], color: color(s), values: out[s].vals }));
+  const ultimos = v => v.filter(x => x != null).slice(-2);
   const alt = `Gráfico de líneas del índice de precios desde ${fDiaA(dates[0])}: ` +
-    series.map(s => `${s.name} ${pct(lastOf(s.values) - 100)}`).join(', ') + '. Detalle en "Ver como tabla".';
+    series.map(s => `${s.name} ${pct(ultimos(s.values).pop() - 100)}`).join(', ') + '. Detalle en la tabla de abajo.';
   lineChart(el, { dates, series, base: 100, alt, yFmt: (v, axis) => axis ? v.toLocaleString('es-CL', { maximumFractionDigits: 1 }) : pct(v - 100) });
-  $('idxLegend').innerHTML = series.map(s => `<span><i class="key" style="background:${s.color}"></i>${esc(s.name)}</span>`).join('');
-  const rows = TIENDAS.filter(s => out[s].vals.some(v => v != null)).map(s => {
-    const v = out[s].vals; let last = null; for (let i = v.length - 1; i >= 0; i--) if (v[i] != null) { last = v[i]; break; }
-    return `<tr><td>${NOMBRES[s]}</td><td class="num">${last != null ? last.toLocaleString('es-CL', { maximumFractionDigits: 1, minimumFractionDigits: 1 }) : '—'}</td><td class="num">${last != null ? pct(last - 100) : '—'}</td><td class="num">${out[s].n}</td></tr>`;
-  }).join('');
-  $('idxTable').innerHTML = `<table><thead><tr><th>Supermercado</th><th>Índice</th><th>Cambio</th><th>Productos</th></tr></thead><tbody>${rows}</tbody></table>
-    <p class="hint" style="margin-top:6px">Desde ${fDiaA(dates[0])} hasta ${fDiaA(dates[dates.length - 1])}.</p>`;
+  // La tabla hace de leyenda del gráfico: color de la línea, cambio del último día y del período, con barra.
+  const filas = conDatos.map(s => {
+    const u = ultimos(out[s].vals), ult = u[u.length - 1], ant = u.length > 1 ? u[0] : null;
+    return { s, periodo: ult - 100, dia: ant != null ? (ult / ant - 1) * 100 : null, n: out[s].n };
+  }).sort((a, b) => b.periodo - a.periodo);
+  const tope = Math.max(0.5, ...filas.map(f => Math.abs(f.periodo)));
+  const periodo = RANGO ? `${RANGO === 365 ? '1 año' : RANGO + ' días'}` : 'todo el período';
+  const filasHtml = filas.map(f => `<tr>
+      <th scope="row"><span class="tn"><i class="key" style="background:${color(f.s)}"></i>${NOMBRES[f.s]}</span></th>
+      <td class="n ${tono(f.dia)}">${f.dia == null ? '—' : pctN(f.dia, 2)}</td>
+      <td class="n ${tono(f.periodo)}">${barra(f.periodo, tope)}${pctN(f.periodo, 2)}</td>
+      <td class="n">${f.n.toLocaleString('es-CL')}</td></tr>`).join('');
+  $('idxTable').innerHTML = `<table class="t idx"><caption class="sr">Cambio del índice de precios por supermercado</caption>
+    <thead><tr><th scope="col">Supermercado</th><th scope="col" class="n">Último día (%)</th><th scope="col" class="n">${periodo === 'todo el período' ? 'Todo el período' : 'En ' + periodo} (%)</th><th scope="col" class="n">Productos<span class="largo"> comparados</span></th></tr></thead>
+    <tbody>${filasHtml}</tbody></table>
+    <p class="hint tnota">Del ${fDiaA(dates[0])} al ${fDiaA(dates[dates.length - 1])}. <span class="up">Rojo</span>: subió; <span class="down">verde</span>: bajó.${sinDatos.length ? ` Sin productos para comparar: ${sinDatos.map(s => NOMBRES[s]).join(', ')}.` : ''}</p>`;
 }
+// Cambio con signo y sin «%» (va en el encabezado de la columna); lo que redondea a cero se muestra sin signo.
+const pctN = (v, dec = 1) => { const r = +v.toFixed(dec); return (r > 0 ? '+' : r < 0 ? '−' : '') + Math.abs(r).toLocaleString('es-CL', { minimumFractionDigits: dec, maximumFractionDigits: dec }); };
+const tono = v => v == null || Math.abs(v) < 0.005 ? 'cero' : v > 0 ? 'up' : 'down';
+// Barra divergente desde el centro: hacia la derecha sube, hacia la izquierda baja. El número va al lado.
+const barra = (v, tope) => `<span class="dbar" aria-hidden="true">${Math.abs(v) < 0.005 ? '' : `<i class="${v > 0 ? 'up' : 'down'}" style="width:${Math.min(50, Math.abs(v) / tope * 50).toFixed(1)}%"></i>`}</span>`;
 
 const ph = s => `<div class="ph" aria-hidden="true">${NOMBRES[s][0]}</div>`;
 function itemHtml(p, extra, below = '') {
@@ -824,26 +878,47 @@ function itemHtml(p, extra, below = '') {
 }
 
 function renderMovers() {
-  const { ups, downs } = INICIO;
-  const none = INICIO.dias < 2 ? 'Aparecen cuando haya al menos dos días de datos.' : 'Sin cambios de precio en los últimos 7 días.';
-  $('ups').innerHTML = ups.length ? ups.map(p => itemHtml(p, p.ch)).join('') : `<li class="empty">${none}</li>`;
-  $('downs').innerHTML = downs.length ? downs.map(p => itemHtml(p, p.ch)).join('') : `<li class="empty">${none}</li>`;
+  const { ups, downs, movDesde } = INICIO;
+  // Con menos de una semana de datos, el cambio se mide desde el primer día.
+  const semana = !movDesde || movDesde <= addDays(HOY, -7);
+  const desde = semana ? 'Últimos 7 días' : `Desde el ${fDia(movDesde)}`;
+  $('upHint').textContent = $('downHint').textContent = desde;
+  const none = INICIO.dias < 2 ? 'Aparecen cuando haya al menos dos días de datos.' : `Sin cambios de precio ${semana ? 'en los últimos 7 días' : 'desde el ' + fDia(movDesde)}.`;
+  const tabla = (lista, titulo) => !lista.length ? `<p class="empty">${none}</p>` : `<table class="t mov"><caption class="sr">${titulo}, ${desde.toLowerCase()}</caption>
+    <thead><tr><th scope="col">Producto</th><th scope="col" class="n">Antes</th><th scope="col" class="n">Hoy</th><th scope="col" class="n">Cambio (%)</th></tr></thead>
+    <tbody>${lista.map(p => `<tr data-k="${esc(p.key)}" tabindex="0">
+      <th scope="row"><span class="prod">${p.i ? `<img src="${esc(p.i)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-ph="${p.store}">` : ph(p.store)}
+        <span><span class="name">${esc(p.n)}</span><span class="meta"><i class="dot" style="background:${color(p.store)}"></i>${NOMBRES[p.store]}${p.m ? ' · ' + esc(p.m) : ''}</span></span></span></th>
+      <td class="n antes">${p.antes != null ? fmt(p.antes) : "—"}</td>
+      <td class="n"><b>${fmt(p.price)}</b></td>
+      <td class="n"><span class="chg ${p.ch > 0 ? 'up' : 'down'}">${pctN(p.ch)}</span></td></tr>`).join('')}</tbody></table>`;
+  $('ups').innerHTML = tabla(ups, 'Mayores alzas');
+  $('downs').innerHTML = tabla(downs, 'Mayores bajas');
 }
 
 function renderStores() {
-  $('stores').innerHTML = TIENDAS.map(s => {
+  // Una fila por tienda: cuántos precios hay, de qué día y de dónde salen (lectura diaria o aportes de la gente).
+  const filas = TIENDAS.map(s => {
     const e = ESTADO[s] || {};
     const { n, ap: nAp, apUlt } = INICIO.conteos[s];
-    const ap = { length: nAp };
-    const apTxt = nAp ? `${nAp.toLocaleString('es-CL')} precio${nAp === 1 ? '' : 's'} aportado${nAp === 1 ? '' : 's'}${ZONA ? ' en tu región' : ''}<br>el último del ${fDia(apUlt)}` : '';
-    if (!LEIDAS.includes(s)) return `<div class="store" style="--c:${color(s)}"><b>${NOMBRES[s]}</b><span class="st">${apTxt || (ZONA ? 'Sin aportes en tu región' : 'Sin aportes todavía')}</span></div>`;
-    const atrasada = e.fecha && e.fecha < HOY;
-    const st = SIN_LECTURA.has(s) ? `Ya no se lee sola<br>leídos al ${fDia(e.fecha)}${ap.length ? ` · ${ap.length} aportado${ap.length === 1 ? '' : 's'}` : ''}`
-      : !e.fecha ? '<span class="bad">Sin datos</span>'
-      : e.ok === false || atrasada ? `<span class="bad">Sin lectura nueva</span><br>precios del ${fDia(e.fecha)}`
-      : `${n.toLocaleString('es-CL')} productos<br>al ${fDia(e.fecha)}`;
-    return `<div class="store" style="--c:${color(s)}"><b>${NOMBRES[s]}</b><span class="st">${st}</span></div>`;
-  }).join('') + (FERRE ? `<p class="hint" style="margin-top:10px;grid-column:1/-1">Sodimac se lee por categoría (su robots.txt no permite leer su búsqueda). Easy: precio normal, oferta y precio con tarjeta Cencosud. No incluidas: Imperial (bloquea a los programas que leen precios), MTS (sin precios en línea) y Construmart (su robots.txt no permite leer su búsqueda).</p>` : `<p class="hint" style="margin-top:10px;grid-column:1/-1">aCuenta: precios del local El Monte. Central Mayorista: local Macul, precios para comerciantes socios, por caja o pack (el precio por unidad divide por la cantidad). Alvi: precio por unidad; en la ficha, los precios por cantidad. Líder, Tottus y Super10 no se pueden leer automáticamente (Líder lo prohíbe en su robots.txt, Tottus bloquea a los programas que se identifican como robot y Super10 no tiene tienda en línea): sus precios los aporta la gente, con el local y la fecha. <a href="${aportarUrl()}" target="_blank" rel="noopener noreferrer">Aportar un precio</a> (se necesita una cuenta gratis de GitHub).</p>`);
+    const aportes = nAp ? `${nAp.toLocaleString('es-CL')} aportado${nAp === 1 ? '' : 's'}${ZONA ? ' en tu región' : ''}` : '';
+    let cant, dia, est;
+    if (!LEIDAS.includes(s)) {
+      cant = nAp; dia = apUlt; est = nAp ? `Aportes de la gente` : `<span class="muted">${ZONA ? 'Sin aportes en tu región' : 'Sin aportes todavía'}</span>`;
+    } else if (SIN_LECTURA.has(s)) {
+      cant = n + nAp; dia = e.fecha; est = `<span class="warn">Ya no se lee sola</span>${aportes ? ' · ' + aportes : ''}`;
+    } else if (!e.fecha) {
+      cant = 0; dia = ''; est = '<span class="bad">Sin datos</span>';
+    } else {
+      const atrasada = e.ok === false || e.fecha < HOY;
+      cant = n; dia = e.fecha; est = atrasada ? '<span class="bad">Sin lectura nueva</span>' : '<span class="ok">Al día</span>';
+    }
+    return `<tr><th scope="row"><span class="tn"><i class="dot" style="background:${color(s)}"></i>${NOMBRES[s]}</span></th>
+      <td class="n">${cant ? cant.toLocaleString('es-CL') : '—'}</td><td class="n">${dia ? fDia(dia) : '—'}</td><td class="est">${est}</td></tr>`;
+  }).join('');
+  $('stores').innerHTML = `<table class="t tiendas"><caption class="sr">Estado de cada ${FERRE ? 'ferretería' : 'supermercado'}</caption>
+    <thead><tr><th scope="col">${FERRE ? 'Ferretería' : 'Supermercado'}</th><th scope="col" class="n">Productos</th><th scope="col" class="n">Precios del</th><th scope="col">Estado</th></tr></thead>
+    <tbody>${filas}</tbody></table>` + (FERRE ? `<p class="hint tnota">Sodimac se lee por categoría (su robots.txt no permite leer su búsqueda). Easy: precio normal, oferta y precio con tarjeta Cencosud. No incluidas: Imperial (bloquea a los programas que leen precios), MTS (sin precios en línea) y Construmart (su robots.txt no permite leer su búsqueda).</p>` : `<p class="hint tnota">aCuenta: precios del local El Monte. Central Mayorista: local Macul, precios para comerciantes socios, por caja o pack (el precio por unidad divide por la cantidad). Alvi: precio por unidad; en la ficha, los precios por cantidad. Líder, Tottus y Super10 no se pueden leer automáticamente (Líder lo prohíbe en su robots.txt, Tottus bloquea a los programas que se identifican como robot y Super10 no tiene tienda en línea): sus precios los aporta la gente, con el local y la fecha. <a href="${aportarUrl()}" target="_blank" rel="noopener noreferrer">Aportar un precio</a> (se necesita una cuenta gratis de GitHub).</p>`);
   const atrasadas = TIENDAS.filter(s => !SIN_LECTURA.has(s) && ESTADO[s] && ESTADO[s].fecha && (ESTADO[s].ok === false || ESTADO[s].fecha < HOY));
   $('banner').innerHTML = atrasadas.length ? `<div class="banner">${atrasadas.map(s => `<b>${NOMBRES[s]}</b> muestra precios del ${fDia(ESTADO[s].fecha)}`).join(' · ')}. No hubo lectura nueva hoy.</div>` : '';
 }
@@ -1260,7 +1335,7 @@ function ver(v) {
 }
 
 document.addEventListener('click', ev => {
-  const it = ev.target.closest('.item[data-k], button[data-k]');
+  const it = ev.target.closest('.item[data-k], tr[data-k], button[data-k]');
   if (it) { abrir(it.dataset.k); return; }
   // Comparar: desplegar un producto, canasta y producto a producto.
   const gh = ev.target.closest('[data-g]');
@@ -1315,7 +1390,7 @@ document.addEventListener('click', ev => {
   }
 });
 document.addEventListener('keydown', ev => {
-  if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('.item[data-k]')) { ev.preventDefault(); abrir(ev.target.dataset.k); }
+  if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('.item[data-k], tr[data-k]')) { ev.preventDefault(); abrir(ev.target.dataset.k); }
 });
 document.addEventListener('error', ev => {
   const im = ev.target;
